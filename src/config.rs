@@ -12,9 +12,9 @@ const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
 const YOJIMBO_DEFAULT_TIMEOUT: i32 = 5;
 
 pub struct ConnectionConfig {
-    num_channels: usize,
-    max_packet_size: usize,
-    channels: [ChannelConfig; MAX_CHANNELS],
+    pub num_channels: usize,
+    pub max_packet_size: usize,
+    pub channels: [ChannelConfig; MAX_CHANNELS],
 }
 
 impl Default for ConnectionConfig {
@@ -30,35 +30,35 @@ impl Default for ConnectionConfig {
 // TODO: figure out where ConnectionConfig is used and this is not
 // (yojimbo has CSC inherit from ConnectionConfig)
 pub struct ClientServerConfig {
-    connection: ConnectionConfig,
+    pub connection: ConnectionConfig,
     /// Clients can only connect to servers with the same protocol id. Use this for versioning.
-    protocol_id: u64,
+    pub protocol_id: u64,
     /// Timeout value in seconds. Set to negative value to disable timeouts (for debugging only).
-    timeout: i32,
+    pub timeout: i32,
     /// Memory allocated inside Client for packets, messages and stream allocations (bytes)
-    client_memory: usize,
+    pub client_memory: usize,
     /// Memory allocated inside Server for global connection request and challenge response packets (bytes)
-    server_global_memory: usize,
+    pub server_global_memory: usize,
     /// Memory allocated inside Server for packets, messages and stream allocations per-client (bytes)
-    server_per_client_memory: usize,
+    pub server_per_client_memory: usize,
     /// If true then a network simulator is created for simulating latency, jitter, packet loss and duplicates.
-    network_simulator: bool,
+    pub network_simulator: bool,
     /// Maximum number of packets that can be stored in the network simulator. Additional packets are dropped.
-    max_simulator_packets: usize,
+    pub max_simulator_packets: usize,
     /// Packets above this size (bytes) are split apart into fragments and reassembled on the other side.
-    fragment_packets_above: usize,
+    pub fragment_packets_above: usize,
     /// Size of each packet fragment (bytes).
-    packet_fragment_size: usize,
+    pub packet_fragment_size: usize,
     /// Maximum number of fragments a packet can be split up into.
-    max_packet_fragments: usize,
+    pub max_packet_fragments: usize,
     /// Number of packet entries in the fragmentation reassembly buffer.
-    packet_reassembly_buffer_size: usize,
+    pub packet_reassembly_buffer_size: usize,
     /// Number of packet entries in the acked packet buffer. Consider your packet send rate and aim to have at least a few seconds worth of entries.
-    acked_packets_buffer_size: usize,
+    pub acked_packets_buffer_size: usize,
     /// Number of packet entries in the received packet sequence buffer. Consider your packet send rate and aim to have at least a few seconds worth of entries.
-    received_packets_buffer_size: usize,
+    pub received_packets_buffer_size: usize,
     /// Round-Trip Time (RTT) smoothing factor over time.
-    rtt_smoothing_factor: f32,
+    pub rtt_smoothing_factor: f32,
 }
 
 impl Default for ClientServerConfig {
