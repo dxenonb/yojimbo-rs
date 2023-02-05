@@ -2,7 +2,7 @@ use std::mem::size_of;
 
 use rust_game_networking::{
     bindings::netcode_random_bytes, client::Client, config::ClientServerConfig, initialize,
-    shutdown,
+    shutdown, PRIVATE_KEY_BYTES,
 };
 
 #[test]
@@ -25,5 +25,9 @@ fn client_main() {
     let config = ClientServerConfig::default();
     let mut client = Client::new("0.0.0.0".to_string(), config, time);
 
-    let server_address = "127.0.0.1:40000";
+    let server_address = "127.0.0.1:40000".to_string();
+
+    let private_key = [0; PRIVATE_KEY_BYTES];
+
+    client.insecure_connect(&private_key, client_id, &[&server_address]);
 }
