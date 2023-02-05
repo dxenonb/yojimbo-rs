@@ -1,3 +1,5 @@
+use std::{sync::mpsc::channel, thread::yield_now};
+
 use rust_game_networking::{
     config::ClientServerConfig, initialize, log_level, server::Server, shutdown, LogLevel,
     PRIVATE_KEY_BYTES,
@@ -26,10 +28,19 @@ fn server_main() {
     let mut server = Server::new(&private_key, server_address, config, time);
     server.start(max_clients);
 
-    println!("server started");
+    let (stop_tx, stop_rx) = channel();
+    ctrlc::set_handler(move || stop_tx.send(()).unwrap()).expect("Failed to set Ctrl-C handler");
+    println!("server started; Ctrl-C to stop");
 
-    // TODO: loop
+    loop {
+        if stop_rx.try_recv().is_ok() {
+            break;
+        }
+
+        yield_now();
+    }
 
     println!("stopping server");
     server.stop();
+    println!("server stopped");
 }
