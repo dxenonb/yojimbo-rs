@@ -1,3 +1,6 @@
 [submodule "lib/reliable"]
 	path = lib/reliable
 	url = https://github.com/networkprotocol/reliable.git
+[submodule "lib/netcode"]
+	path = lib/netcode
+	url = https://github.com/networkprotocol/netcode.io
