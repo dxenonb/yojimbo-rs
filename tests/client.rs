@@ -5,7 +5,8 @@ use rust_game_networking::{
     shutdown,
 };
 
-fn main() {
+#[test]
+fn client() {
     initialize().unwrap();
 
     client_main();
