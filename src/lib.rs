@@ -1,16 +1,32 @@
-// pub mod channel;
+use std::error::Error;
+
 pub mod bindings;
+pub mod client;
 pub mod config;
+pub mod connection;
 pub mod server;
 
 pub const PRIVATE_KEY_BYTES: usize = config::NETCODE_KEY_BYTES;
 
-pub fn initialize() {
-    // TODO
+pub fn initialize() -> Result<(), Box<dyn Error>> {
+    unsafe {
+        if bindings::netcode_init() != bindings::NETCODE_OK as _ {
+            return Err("failed to initialize netcode".into());
+        }
+        if bindings::reliable_init() != bindings::RELIABLE_OK as _ {
+            return Err("failed to initialize reliable".into());
+        }
+        // TODO:
+        // if bindings::sodium_init() != -1 { }
+    }
+    Ok(())
 }
 
 pub fn shutdown() {
-    // TODO
+    unsafe {
+        bindings::reliable_term();
+        bindings::netcode_term();
+    }
 }
 
 /**
