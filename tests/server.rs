@@ -3,7 +3,7 @@ use rust_game_networking::{
 };
 
 fn main() {
-    initialize();
+    initialize().unwrap();
 
     server_main();
 
