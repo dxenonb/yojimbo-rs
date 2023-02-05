@@ -207,6 +207,7 @@ dependencies = [
  "bindgen",
  "cc",
  "ctrlc",
+ "log",
 ]
 
 [[package]]
