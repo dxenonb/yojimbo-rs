@@ -22,6 +22,22 @@ pub fn initialize() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Debug, Copy, Clone)]
+#[repr(i32)]
+pub enum LogLevel {
+    None = 0,
+    Error = 1,
+    Info = 2,
+    Debug = 3,
+}
+
+pub fn log_level(level: LogLevel) {
+    unsafe {
+        bindings::netcode_log_level(level as _);
+        bindings::reliable_log_level(level as _);
+    }
+}
+
 pub fn shutdown() {
     unsafe {
         bindings::reliable_term();
