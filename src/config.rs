@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 const MAX_CLIENTS: u32 = 64;
 const MAX_CHANNELS: usize = 64;
 const KEY_BYTES: usize = 32;
