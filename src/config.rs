@@ -1,5 +1,10 @@
 #![allow(unused)]
 
+use crate::bindings::*;
+use crate::gf_init_default;
+use std::ffi::c_void;
+use std::ffi::{CStr, CString};
+
 const MAX_CLIENTS: u32 = 64;
 const MAX_CHANNELS: usize = 64;
 pub(crate) const NETCODE_KEY_BYTES: usize = 32;
@@ -84,6 +89,56 @@ impl Default for ClientServerConfig {
             received_packets_buffer_size: 256,
             rtt_smoothing_factor: 0.0025,
         }
+    }
+}
+
+pub(crate) type ReliableTransmitPacketFn = extern "C" fn(
+    context: *mut c_void,
+    index: i32,
+    packet_sequence: u16,
+    packet_data: *mut u8,
+    packet_bytes: i32,
+);
+
+pub(crate) type ReliableProcessPacketFn = extern "C" fn(
+    context: *mut c_void,
+    index: i32,
+    packet_sequence: u16,
+    packet_data: *mut u8,
+    packet_bytes: i32,
+) -> i32;
+
+impl ClientServerConfig {
+    pub(crate) fn new_reliable_config(
+        &self,
+        name: &str,
+        client_index: Option<usize>,
+        transmit_packet: ReliableTransmitPacketFn,
+        process_packet: ReliableProcessPacketFn,
+    ) -> reliable_config_t {
+        let mut reliable_config = gf_init_default!(reliable_config_t, reliable_default_config);
+
+        let name = CString::new(name).unwrap();
+        reliable_config.name[..name.to_bytes_with_nul().len()]
+            .copy_from_slice(unsafe { &*(name.to_bytes_with_nul() as *const [u8] as *const [i8]) });
+        reliable_config.context = std::ptr::null_mut();
+        reliable_config.index = client_index.unwrap_or(0) as _;
+        reliable_config.max_packet_size = self.connection.max_packet_size as _;
+        reliable_config.fragment_above = self.fragment_packets_above as _;
+        reliable_config.max_fragments = self.max_packet_fragments as _;
+        reliable_config.fragment_size = self.packet_fragment_size as _;
+        reliable_config.ack_buffer_size = self.acked_packets_buffer_size as _;
+        reliable_config.received_packets_buffer_size = self.received_packets_buffer_size as _;
+        reliable_config.fragment_reassembly_buffer_size = self.packet_reassembly_buffer_size as _;
+        reliable_config.rtt_smoothing_factor = self.rtt_smoothing_factor;
+        reliable_config.transmit_packet_function = Some(transmit_packet);
+        reliable_config.process_packet_function = Some(process_packet);
+
+        reliable_config.allocator_context = std::ptr::null_mut();
+        reliable_config.allocate_function = None;
+        reliable_config.free_function = None;
+
+        reliable_config
     }
 }
 
