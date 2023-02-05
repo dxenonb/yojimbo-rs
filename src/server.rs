@@ -123,9 +123,12 @@ impl Server {
             netcode_config
                 .private_key
                 .copy_from_slice(&self.private_key);
-            netcode_config.allocator_context = std::ptr::null_mut(); // TODO
-            netcode_config.allocate_function = None; // TODO
-            netcode_config.free_function = None; // TODO
+
+            // TODO: default_server_config sets a default allocate function (reliable.io checks if the function is null... more often)
+            // netcode_config.allocator_context = std::ptr::null_mut();
+            // netcode_config.allocate_function = None;
+            // netcode_config.free_function = None;
+
             netcode_config.callback_context = std::ptr::null_mut(); // TODO
             netcode_config.connect_disconnect_callback = None; // TODO
             netcode_config.send_loopback_packet_callback = None; // TODO
