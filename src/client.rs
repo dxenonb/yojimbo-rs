@@ -5,11 +5,30 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::Connection;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
+#[derive(Debug, Clone, Copy)]
+#[repr(i32)]
 pub enum ClientState {
-    Error,
-    Disconnected,
+    Error = -1,
+    Disconnected = 0,
     Connecting,
     Connected,
+}
+
+impl ClientState {
+    fn try_from_i32(val: i32) -> Option<ClientState> {
+        // TODO: I think we can derive this with FromPrimitive in num-traits
+        let mapped = match val {
+            -1 => ClientState::Error,
+            0 => ClientState::Disconnected,
+            1 => ClientState::Connecting,
+            2 => ClientState::Connected,
+            _ => {
+                return None;
+            }
+        };
+        assert_eq!(val, mapped as _);
+        Some(mapped)
+    }
 }
 
 pub struct Client {
@@ -106,7 +125,7 @@ impl Client {
             gf_init_default!(netcode_client_config_t, netcode_default_client_config);
         // TODO: allocator support
         netcode_config.callback_context = self as *mut _ as *mut c_void;
-        netcode_config.state_change_callback = None; // TODO
+        netcode_config.state_change_callback = Some(state_change_callback);
         netcode_config.send_loopback_packet_callback = None; // TODO
         let address = CString::new(self.address.as_str()).unwrap();
         self.client = unsafe {
@@ -122,26 +141,32 @@ impl Client {
         // TODO
     }
 
+    fn state_change_callback(&mut self, previous: ClientState, current: ClientState) {
+        // TODO: do we need this (not rusty, meant for inheritance)? callers can poll
+        // TODO: remove debug message
+        println!("client state changed from: {:?} to {:?}", previous, current);
+    }
+
     pub fn disconnect(&mut self) {
         // TODO
     }
 }
 
 extern "C" fn transmit_packet(
-    context: *mut c_void,
-    index: i32,
-    packet_sequence: u16,
-    packet_data: *mut u8,
-    packet_bytes: i32,
+    _context: *mut c_void,
+    _index: i32,
+    _packet_sequence: u16,
+    _packet_data: *mut u8,
+    _packet_bytes: i32,
 ) {
 }
 
 extern "C" fn process_packet(
-    context: *mut c_void,
-    index: i32,
-    packet_sequence: u16,
-    packet_data: *mut u8,
-    packet_bytes: i32,
+    _context: *mut c_void,
+    _index: i32,
+    _packet_sequence: u16,
+    _packet_data: *mut u8,
+    _packet_bytes: i32,
 ) -> i32 {
     0
 }
@@ -184,4 +209,16 @@ fn generate_insecure_connect_token(
     }
 
     Some(connect_token)
+}
+
+extern "C" fn state_change_callback(context: *mut c_void, previous: i32, current: i32) {
+    let client = context as *mut Client;
+    let previous = ClientState::try_from_i32(previous).unwrap();
+    let current = ClientState::try_from_i32(current).unwrap();
+    unsafe {
+        client
+            .as_mut()
+            .unwrap()
+            .state_change_callback(previous, current);
+    }
 }
