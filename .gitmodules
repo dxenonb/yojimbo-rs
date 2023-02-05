@@ -1,0 +1,3 @@
+[submodule "lib/reliable"]
+	path = lib/reliable
+	url = https://github.com/networkprotocol/reliable.git
