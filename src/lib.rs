@@ -1,6 +1,6 @@
 // pub mod channel;
+pub mod bindings;
 pub mod config;
-pub mod reliable;
 pub mod server;
 
 pub fn initialize() {

@@ -1,8 +1,8 @@
 use std::ffi::c_void;
 use std::mem::MaybeUninit;
 
+use crate::bindings::*;
 use crate::config::ClientServerConfig;
-use crate::reliable::*;
 
 pub struct Server {
     ///< Allocator passed in to constructor.
