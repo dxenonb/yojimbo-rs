@@ -2,6 +2,7 @@ use std::ffi::{c_void, CStr, CString};
 use std::mem::MaybeUninit;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
+use crate::connection::Connection;
 use crate::{bindings::*, gf_init_default};
 
 pub struct Server {
@@ -18,15 +19,15 @@ pub struct Server {
     // ///< Optional serialization context.
     // // TODO: context: void*,
     /// Maximum number of clients supported.
-    max_clients: u32,
+    max_clients: usize,
     /// True if server is currently running, eg. after "Start" is called, before "Stop".
     running: bool,
     /// Current server time in seconds.
     time: f64,
     // ///< Array of per-client message factories. This silos message allocations per-client slot.
     // client_message_factory: Vec<MessageFactory>,
-    // ///< Array of per-client connection classes. This is how messages are exchanged with clients.
-    // client_connection: Vec<Connection>,
+    /// Array of per-client connection classes. This is how messages are exchanged with clients.
+    client_connection: Vec<Connection>,
     /// Array of per-client reliable.io endpoints.
     client_endpoint: Vec<*mut reliable_endpoint_t>,
     /// The network simulator used to simulate packet loss, latency, jitter etc. Optional.
@@ -52,6 +53,7 @@ impl Server {
             running: false,
             time,
             client_endpoint: Vec::new(),
+            client_connection: Vec::new(),
             network_simulator: None,
 
             server: std::ptr::null_mut(),
@@ -60,7 +62,7 @@ impl Server {
         }
     }
 
-    pub fn start(&mut self, max_clients: u32) {
+    pub fn start(&mut self, max_clients: usize) {
         {
             /* yojimbo BaseServer::Start { */
             if self.running() {
@@ -76,7 +78,11 @@ impl Server {
                 create message factory
             */
 
+            assert!(self.client_connection.is_empty());
+            assert!(self.client_endpoint.is_empty());
             for i in 0..max_clients {
+                self.client_connection.push(Connection::new());
+
                 let mut reliable_config =
                     gf_init_default!(reliable_config_t, reliable_default_config);
 
@@ -96,11 +102,12 @@ impl Server {
                 reliable_config.fragment_reassembly_buffer_size =
                     self.config.packet_reassembly_buffer_size as _;
                 reliable_config.rtt_smoothing_factor = self.config.rtt_smoothing_factor;
-                reliable_config.transmit_packet_function = Some(static_transmit_packet_function); // TODO
-                reliable_config.process_packet_function = None; // TODO
-                reliable_config.allocator_context = std::ptr::null_mut(); // TODO
-                reliable_config.allocate_function = None; // TODO
-                reliable_config.free_function = None; // TODO
+                reliable_config.transmit_packet_function = Some(static_transmit_packet_function);
+                reliable_config.process_packet_function = Some(static_process_packet_function);
+
+                reliable_config.allocator_context = std::ptr::null_mut();
+                reliable_config.allocate_function = None;
+                reliable_config.free_function = None;
 
                 unsafe {
                     let endpoint = reliable_endpoint_create(&mut reliable_config, self.time);
@@ -168,6 +175,8 @@ impl Server {
                 unsafe { reliable_endpoint_destroy(*endpoint) };
                 *endpoint = std::ptr::null_mut();
             }
+            self.client_endpoint.clear();
+            self.client_connection.clear();
 
             self.running = false;
             self.max_clients = 0;
@@ -202,6 +211,28 @@ impl Server {
             netcode_server_send_packet(self.server, client_index, packet_data, packet_bytes);
         }
     }
+
+    fn process_packet_function(
+        &mut self,
+        client_index: i32,
+        _packet_sequence: u16,
+        _packet_data: *mut u8,
+        _packet_bytes: i32,
+    ) -> i32 {
+        let _connection = self.client_connection_mut(client_index);
+        // TODO: connection.process_packet()
+        0
+    }
+
+    fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection {
+        assert!(self.running());
+        assert!(client_index > 0);
+        let client_index = client_index as usize;
+        assert!(client_index < self.max_clients);
+        assert!(client_index < self.client_connection.len());
+
+        &mut self.client_connection[client_index]
+    }
 }
 
 unsafe extern "C" fn static_transmit_packet_function(
@@ -218,4 +249,20 @@ unsafe extern "C" fn static_transmit_packet_function(
         packet_data,
         packet_bytes,
     );
+}
+
+unsafe extern "C" fn static_process_packet_function(
+    context: *mut c_void,
+    index: i32,
+    packet_sequence: u16,
+    packet_data: *mut u8,
+    packet_bytes: i32,
+) -> i32 {
+    let server = context as *mut Server;
+    server.as_mut().unwrap().process_packet_function(
+        index,
+        packet_sequence,
+        packet_data,
+        packet_bytes,
+    )
 }

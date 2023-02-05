@@ -17,3 +17,9 @@ pub struct Connection {
     // channel: Vec<Channel>,
     // error_level: ConnectionErrorLevel,
 }
+
+impl Connection {
+    pub(crate) fn new() -> Connection {
+        Connection {}
+    }
+}
