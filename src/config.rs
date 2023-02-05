@@ -2,7 +2,7 @@
 
 const MAX_CLIENTS: u32 = 64;
 const MAX_CHANNELS: usize = 64;
-const KEY_BYTES: usize = 32;
+pub(crate) const NETCODE_KEY_BYTES: usize = 32;
 const CONNECT_TOKEN_BYTES: usize = 2048;
 const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
 const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;

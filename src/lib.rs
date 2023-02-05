@@ -3,6 +3,8 @@ pub mod bindings;
 pub mod config;
 pub mod server;
 
+pub const PRIVATE_KEY_BYTES: usize = config::NETCODE_KEY_BYTES;
+
 pub fn initialize() {
     // TODO
 }
