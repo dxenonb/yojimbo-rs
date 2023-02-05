@@ -1,5 +1,4 @@
 use std::ffi::{c_void, CStr, CString};
-use std::mem::MaybeUninit;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::Connection;
