@@ -41,7 +41,8 @@ fn client_main() {
             break;
         }
 
-        // TODO: send and receive
+        client.send_packets();
+        client.receive_packets();
 
         if client.is_disconnected() {
             break;

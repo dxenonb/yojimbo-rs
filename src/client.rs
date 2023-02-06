@@ -141,6 +141,10 @@ impl Client {
         self.client_state = ClientState::Connecting;
     }
 
+    pub fn send_packets(&mut self) {}
+
+    pub fn receive_packets(&mut self) {}
+
     pub fn is_disconnected(&self) -> bool {
         matches!(
             self.client_state,
