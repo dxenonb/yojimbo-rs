@@ -54,4 +54,17 @@ impl Connection {
 
         true
     }
+
+    /// Generate a packet.
+    ///
+    /// Returns None if no packet is generated. Else returns Some(bytes). Bytes is i32 because C is dumb (netcode expect an i32).
+    pub(crate) unsafe fn generate_packet(
+        &mut self,
+        _packet_sequence: u16,
+        _packet_data: *const u8,
+        _max_packet_size: usize,
+    ) -> Option<i32> {
+        // TODO
+        None
+    }
 }
