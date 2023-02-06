@@ -41,6 +41,7 @@ fn client_main() {
 
     loop {
         if stop_rx.try_recv().is_ok() {
+            println!("stopping client");
             break;
         }
 
@@ -56,11 +57,13 @@ fn client_main() {
         client.advance_time(delta_time);
 
         if client.connection_failed() {
+            println!("stopping client");
             break;
         }
 
         sleep(Duration::from_secs_f64(delta_time));
     }
 
-    client.disconnect()
+    client.disconnect();
+    println!("client exited");
 }
