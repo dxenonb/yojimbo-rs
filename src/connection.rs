@@ -67,4 +67,9 @@ impl Connection {
         // TODO
         None
     }
+
+    pub(crate) fn reset(&mut self) {
+        self.error_level = ConnectionErrorLevel::None;
+        // TODO: reset each channel
+    }
 }
