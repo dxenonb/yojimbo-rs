@@ -251,7 +251,22 @@ impl Client {
     }
 
     pub fn disconnect(&mut self) {
-        // TODO
+        {
+            /* yojimbo BaseClient::Disconnect */
+            self.client_state = ClientState::Disconnected;
+        }
+        self.destroy_client();
+        self.destroy_internal();
+        self.client_id = 0;
+    }
+
+    fn destroy_internal(&mut self) {
+        if !self.endpoint.is_null() {
+            unsafe { reliable_endpoint_destroy(self.endpoint) };
+            self.endpoint = std::ptr::null_mut();
+        }
+        self.network_simulator = None;
+        self.connection = None;
     }
 }
 
