@@ -15,6 +15,8 @@ fn main() {
 }
 
 fn client_main() {
+    println!("connecting client (insecure)");
+
     let mut time = 100.0;
 
     let mut client_id: u64 = 0;
