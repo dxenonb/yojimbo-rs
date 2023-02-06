@@ -258,13 +258,18 @@ impl Server {
     fn process_packet_function(
         &mut self,
         client_index: i32,
-        _packet_sequence: u16,
-        _packet_data: *mut u8,
-        _packet_bytes: i32,
+        packet_sequence: u16,
+        packet_data: *mut u8,
+        packet_bytes: i32,
     ) -> i32 {
-        let _connection = self.client_connection_mut(client_index);
-        // TODO: connection.process_packet()
-        0
+        let connection = self.client_connection_mut(client_index);
+        let result =
+            unsafe { connection.process_packet(packet_sequence, packet_data, packet_bytes) };
+        if result {
+            1
+        } else {
+            0
+        }
     }
 
     fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection {

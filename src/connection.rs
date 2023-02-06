@@ -38,4 +38,20 @@ impl Connection {
     pub(crate) unsafe fn process_acks(&mut self, acks: *mut u16, num_acks: i32) {
         // TODO
     }
+
+    pub(crate) unsafe fn process_packet(
+        &mut self,
+        packet_sequence: u16,
+        packet_data: *const u8,
+        packet_bytes: i32,
+    ) -> bool {
+        if self.error_level() != ConnectionErrorLevel::None {
+            log::debug!("failed to read packet because connection is in error state");
+            return false;
+        }
+
+        // TODO
+
+        true
+    }
 }
