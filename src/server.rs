@@ -143,7 +143,7 @@ impl Server {
                 )
             };
 
-            if !self.server.is_null() {
+            if self.server.is_null() {
                 self.stop();
                 // TODO: emit some kind of error?
                 return;
