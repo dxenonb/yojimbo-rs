@@ -202,6 +202,19 @@ impl Client {
         println!("client state changed from: {:?} to {:?}", previous, current);
     }
 
+    unsafe fn transmit_packet(
+        &mut self,
+        packet_sequence: u16,
+        packet_data: *mut u8,
+        packet_bytes: i32,
+    ) {
+        if let Some(_) = &self.network_simulator {
+            unimplemented!();
+        } else {
+            netcode_client_send_packet(self.client, packet_data, packet_bytes);
+        }
+    }
+
     pub fn disconnect(&mut self) {
         // TODO
     }
@@ -259,16 +272,21 @@ fn client_state_from_netcode_state(state: i32) -> ClientState {
     }
 }
 
-extern "C" fn transmit_packet(
-    _context: *mut c_void,
+unsafe extern "C" fn transmit_packet(
+    context: *mut c_void,
     _index: i32,
-    _packet_sequence: u16,
-    _packet_data: *mut u8,
-    _packet_bytes: i32,
+    packet_sequence: u16,
+    packet_data: *mut u8,
+    packet_bytes: i32,
 ) {
+    let client = context as *mut Client;
+    client
+        .as_mut()
+        .unwrap()
+        .transmit_packet(packet_sequence, packet_data, packet_bytes);
 }
 
-extern "C" fn process_packet(
+unsafe extern "C" fn process_packet(
     _context: *mut c_void,
     _index: i32,
     _packet_sequence: u16,
