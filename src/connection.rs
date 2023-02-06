@@ -41,9 +41,9 @@ impl Connection {
 
     pub(crate) unsafe fn process_packet(
         &mut self,
-        packet_sequence: u16,
-        packet_data: *const u8,
-        packet_bytes: i32,
+        _packet_sequence: u16,
+        _packet_data: *const u8,
+        _packet_bytes: i32,
     ) -> bool {
         if self.error_level() != ConnectionErrorLevel::None {
             log::debug!("failed to read packet because connection is in error state");
