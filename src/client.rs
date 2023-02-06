@@ -141,9 +141,36 @@ impl Client {
         self.client_state = ClientState::Connecting;
     }
 
-    pub fn send_packets(&mut self) {}
+    pub fn send_packets(&mut self) {
+        // TODO
+    }
 
-    pub fn receive_packets(&mut self) {}
+    pub fn receive_packets(&mut self) {
+        if !self.is_connected() {
+            return;
+        }
+        assert!(!self.client.is_null());
+        loop {
+            unsafe {
+                let mut packet_bytes: i32 = 0;
+                let mut packet_sequence: u64 = 0;
+                let packet_data = netcode_client_receive_packet(
+                    self.client,
+                    &mut packet_bytes,
+                    &mut packet_sequence,
+                );
+                if packet_data.is_null() {
+                    break;
+                }
+                reliable_endpoint_receive_packet(self.endpoint, packet_data, packet_bytes);
+                netcode_client_free_packet(self.client, packet_data as *mut _);
+            }
+        }
+    }
+
+    pub fn is_connected(&self) -> bool {
+        matches!(self.client_state, ClientState::Connected)
+    }
 
     pub fn is_disconnected(&self) -> bool {
         matches!(
@@ -208,7 +235,7 @@ impl Client {
 
     unsafe fn transmit_packet(
         &mut self,
-        packet_sequence: u16,
+        _packet_sequence: u16,
         packet_data: *mut u8,
         packet_bytes: i32,
     ) {
