@@ -103,8 +103,8 @@ impl Server {
                 reliable_config.fragment_reassembly_buffer_size =
                     self.config.packet_reassembly_buffer_size as _;
                 reliable_config.rtt_smoothing_factor = self.config.rtt_smoothing_factor;
-                reliable_config.transmit_packet_function = Some(static_transmit_packet_function);
-                reliable_config.process_packet_function = Some(static_process_packet_function);
+                reliable_config.transmit_packet_function = Some(transmit_packet);
+                reliable_config.process_packet_function = Some(process_packet);
 
                 reliable_config.allocator_context = std::ptr::null_mut();
                 reliable_config.allocate_function = None;
@@ -298,7 +298,7 @@ impl Server {
 }
 
 impl Server {
-    fn transmit_packet_function(
+    fn transmit_packet(
         &mut self,
         client_index: i32,
         _packet_sequence: u16,
@@ -313,7 +313,7 @@ impl Server {
         }
     }
 
-    fn process_packet_function(
+    fn process_packet(
         &mut self,
         client_index: i32,
         packet_sequence: u16,
@@ -341,7 +341,7 @@ impl Server {
     }
 }
 
-unsafe extern "C" fn static_transmit_packet_function(
+unsafe extern "C" fn transmit_packet(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
@@ -349,15 +349,13 @@ unsafe extern "C" fn static_transmit_packet_function(
     packet_bytes: i32,
 ) {
     let server = context as *mut Server;
-    server.as_mut().unwrap().transmit_packet_function(
-        index,
-        packet_sequence,
-        packet_data,
-        packet_bytes,
-    );
+    server
+        .as_mut()
+        .unwrap()
+        .transmit_packet(index, packet_sequence, packet_data, packet_bytes);
 }
 
-unsafe extern "C" fn static_process_packet_function(
+unsafe extern "C" fn process_packet(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
@@ -365,12 +363,10 @@ unsafe extern "C" fn static_process_packet_function(
     packet_bytes: i32,
 ) -> i32 {
     let server = context as *mut Server;
-    server.as_mut().unwrap().process_packet_function(
-        index,
-        packet_sequence,
-        packet_data,
-        packet_bytes,
-    )
+    server
+        .as_mut()
+        .unwrap()
+        .process_packet(index, packet_sequence, packet_data, packet_bytes)
 }
 
 fn is_client_connected(server: *mut netcode_server_t, client_index: usize) -> bool {
