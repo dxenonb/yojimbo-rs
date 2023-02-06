@@ -37,7 +37,8 @@ fn server_main() {
             break;
         }
 
-        // TODO: send and receive
+        server.send_packets();
+        server.receive_packets();
 
         time += delta_time;
 

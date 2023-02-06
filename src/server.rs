@@ -185,9 +185,34 @@ impl Server {
         }
     }
 
-    pub fn send_packets(&mut self) {}
+    pub fn send_packets(&mut self) {
+        // TODO
+    }
 
-    pub fn receive_packets(&mut self) {}
+    pub fn receive_packets(&mut self) {
+        if self.server.is_null() {
+            return;
+        }
+        for (client_index, endpoint) in &mut self.client_endpoint.iter().enumerate() {
+            loop {
+                unsafe {
+                    let mut packet_bytes: i32 = 0;
+                    let mut packet_sequence: u64 = 0;
+                    let packet_data = netcode_server_receive_packet(
+                        self.server,
+                        client_index as _,
+                        &mut packet_bytes,
+                        &mut packet_sequence,
+                    );
+                    if packet_data.is_null() {
+                        break;
+                    }
+                    reliable_endpoint_receive_packet(*endpoint, packet_data, packet_bytes);
+                    netcode_server_free_packet(self.server, packet_data as *mut _);
+                }
+            }
+        }
+    }
 
     pub fn advance_time(&mut self, new_time: f64) {
         if !self.server.is_null() {
