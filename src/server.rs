@@ -10,7 +10,6 @@ pub struct Server {
     // ///< The block of memory backing the per-client allocators. Allocated with m_allocator.
     // ///< The global allocator. Used for allocations that don't belong to a specific client.
     // ///< Array of per-client allocator. These are used for allocations related to connected clients.
-    // ///< Buffer used when writing packets.
     /// Base client/server config.
     config: ClientServerConfig,
     // ///< The adapter specifies the allocator to use, and the message factory class.
@@ -31,6 +30,8 @@ pub struct Server {
     client_endpoint: Vec<*mut reliable_endpoint_t>,
     /// The network simulator used to simulate packet loss, latency, jitter etc. Optional.
     network_simulator: Option<()>,
+    /// Buffer used when writing packets.
+    packet_buffer: Vec<u8>,
 
     address: String,
     server: *mut netcode_server_t,
@@ -54,6 +55,7 @@ impl Server {
             client_endpoint: Vec::new(),
             client_connection: Vec::new(),
             network_simulator: None,
+            packet_buffer: Vec::new(),
 
             server: std::ptr::null_mut(),
             address,
@@ -114,7 +116,7 @@ impl Server {
                     reliable_endpoint_reset(*self.client_endpoint.last().unwrap());
                 }
             }
-            // TODO: allocate packet buffer
+            self.packet_buffer = vec![0u8; self.config.connection.max_packet_size];
 
             let mut netcode_config =
                 gf_init_default!(netcode_server_config_t, netcode_default_server_config);
@@ -168,25 +170,52 @@ impl Server {
 
         {
             /* yojimbo BaseServer::Stop */
-            if !self.running {
-                self.max_clients = 0;
-                return;
+            if self.running {
+                for endpoint in &mut self.client_endpoint {
+                    unsafe { reliable_endpoint_destroy(*endpoint) };
+                    *endpoint = std::ptr::null_mut();
+                }
+                self.client_endpoint.clear();
+                self.client_connection.clear();
             }
-
-            for endpoint in &mut self.client_endpoint {
-                unsafe { reliable_endpoint_destroy(*endpoint) };
-                *endpoint = std::ptr::null_mut();
-            }
-            self.client_endpoint.clear();
-            self.client_connection.clear();
 
             self.running = false;
             self.max_clients = 0;
+            self.packet_buffer.clear();
         }
     }
 
     pub fn send_packets(&mut self) {
-        // TODO
+        if self.server.is_null() {
+            return;
+        }
+        for (client_index, (endpoint, conn)) in self
+            .client_endpoint
+            .iter_mut()
+            .zip(self.client_connection.iter_mut())
+            .enumerate()
+        {
+            if !is_client_connected(self.server, client_index) {
+                continue;
+            }
+            let packet_data = &mut self.packet_buffer[..];
+            unsafe {
+                assert_eq!(packet_data.len(), self.config.connection.max_packet_size);
+                let packet_sequence = reliable_endpoint_next_packet_sequence(*endpoint);
+                let packet_bytes = conn.generate_packet(
+                    packet_sequence,
+                    packet_data.as_mut_ptr(),
+                    packet_data.len(),
+                );
+                if let Some(packet_bytes) = packet_bytes {
+                    reliable_endpoint_send_packet(
+                        *endpoint,
+                        packet_data.as_mut_ptr(),
+                        packet_bytes,
+                    );
+                }
+            }
+        }
     }
 
     pub fn receive_packets(&mut self) {
@@ -257,6 +286,10 @@ impl Server {
         if let Some(_) = &self.network_simulator {
             unimplemented!("push packets through the network simulator");
         }
+    }
+
+    pub fn is_client_connected(&self, client_index: usize) -> bool {
+        is_client_connected(self.server, client_index)
     }
 
     pub fn running(&self) -> bool {
@@ -338,4 +371,8 @@ unsafe extern "C" fn static_process_packet_function(
         packet_data,
         packet_bytes,
     )
+}
+
+fn is_client_connected(server: *mut netcode_server_t, client_index: usize) -> bool {
+    unsafe { netcode_server_client_connected(server, client_index as _) != 0 }
 }
