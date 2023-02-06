@@ -2,11 +2,12 @@ use std::{mem::size_of, sync::mpsc::channel, thread::sleep, time::Duration};
 
 use rust_game_networking::{
     bindings::netcode_random_bytes, client::Client, config::ClientServerConfig, initialize,
-    shutdown, PRIVATE_KEY_BYTES,
+    log_level, shutdown, LogLevel, PRIVATE_KEY_BYTES,
 };
 
 fn main() {
     initialize().unwrap();
+    log_level(LogLevel::Debug);
 
     client_main();
 
