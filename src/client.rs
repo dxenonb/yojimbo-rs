@@ -224,7 +224,11 @@ impl Client {
     }
 
     fn destroy_client(&mut self) {
-        // TODO
+        if self.client.is_null() {
+            return;
+        }
+        unsafe { netcode_client_destroy(self.client) };
+        self.client = std::ptr::null_mut();
     }
 
     fn state_change_callback(&mut self, previous: ClientState, current: ClientState) {
