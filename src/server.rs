@@ -130,8 +130,8 @@ impl Server {
             // netcode_config.allocate_function = None;
             // netcode_config.free_function = None;
 
-            netcode_config.callback_context = std::ptr::null_mut(); // TODO
-            netcode_config.connect_disconnect_callback = None; // TODO
+            netcode_config.callback_context = self as *mut _ as *mut c_void;
+            netcode_config.connect_disconnect_callback = Some(connect_disconnect_callback);
             netcode_config.send_loopback_packet_callback = None; // TODO
 
             let server_address = CString::new(self.address.clone()).unwrap();
@@ -330,6 +330,19 @@ impl Server {
         }
     }
 
+    fn handle_connect_disconnect(&mut self, client_index: i32, connected: bool) {
+        // TODO: expose and remove println
+        if connected {
+            println!("client connected: {}", client_index);
+        } else {
+            println!("client disconnected: {}", client_index);
+            self.client_connection[client_index as usize].reset();
+            if let Some(_) = &self.network_simulator {
+                unimplemented!("discard client packets");
+            }
+        }
+    }
+
     fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection {
         assert!(self.running());
         assert!(client_index > 0);
@@ -371,4 +384,16 @@ unsafe extern "C" fn process_packet(
 
 fn is_client_connected(server: *mut netcode_server_t, client_index: usize) -> bool {
     unsafe { netcode_server_client_connected(server, client_index as _) != 0 }
+}
+
+unsafe extern "C" fn connect_disconnect_callback(
+    context: *mut c_void,
+    client_index: i32,
+    connected: i32,
+) {
+    let server = context as *mut Server;
+    server
+        .as_mut()
+        .unwrap()
+        .handle_connect_disconnect(client_index, connected == 1);
 }
