@@ -2,7 +2,7 @@ use std::ffi::{c_void, CString};
 use std::usize;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
-use crate::connection::Connection;
+use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 #[derive(Debug, Clone, Copy)]
@@ -16,7 +16,7 @@ pub enum ClientState {
 
 impl ClientState {
     fn try_from_i32(val: i32) -> Option<ClientState> {
-        // TODO: I think we can derive this with FromPrimitive in num-traits
+        // REFACTOR: I think we can derive this with FromPrimitive in num-traits
         let mapped = match val {
             -1 => ClientState::Error,
             0 => ClientState::Disconnected,
@@ -63,6 +63,50 @@ impl Client {
         }
     }
 
+    pub fn advance_time(&mut self, new_time: f64) {
+        self.time = new_time;
+
+        {
+            /* yojimbo BaseClient::AdvanceTime */
+            if !self.endpoint.is_null() {
+                if let Some(connection) = &mut self.connection {
+                    connection.advance_time(self.time);
+                    if connection.error_level() != ConnectionErrorLevel::None {
+                        log::error!("connection error. disconnecting client");
+                        self.disconnect();
+                        return;
+                    }
+                    unsafe {
+                        reliable_endpoint_update(self.endpoint, self.time);
+                        let mut num_acks = 0;
+                        let acks = reliable_endpoint_get_acks(self.endpoint, &mut num_acks);
+                        connection.process_acks(acks, num_acks);
+                        reliable_endpoint_clear_acks(self.endpoint);
+                    }
+                }
+            }
+            if let Some(_) = self.network_simulator {
+                unimplemented!("advance network simulator time");
+            }
+        }
+
+        if self.client.is_null() {
+            return;
+        }
+        let state = unsafe {
+            netcode_client_update(self.client, self.time);
+            let state = netcode_client_state(self.client);
+            client_state_from_netcode_state(state)
+        };
+        self.client_state = state;
+        if matches!(state, ClientState::Disconnected | ClientState::Error) {
+            self.disconnect();
+        }
+        if let Some(_) = self.network_simulator {
+            unimplemented!("push packets through the network simulator");
+        }
+    }
+
     pub fn insecure_connect(
         &mut self,
         private_key: &[u8; NETCODE_KEY_BYTES],
@@ -95,6 +139,17 @@ impl Client {
         };
         unsafe { netcode_client_connect(self.client, connect_token.as_mut_ptr()) };
         self.client_state = ClientState::Connecting;
+    }
+
+    pub fn is_disconnected(&self) -> bool {
+        matches!(
+            self.client_state,
+            ClientState::Error | ClientState::Disconnected
+        )
+    }
+
+    pub fn connection_failed(&self) -> bool {
+        matches!(self.client_state, ClientState::Error)
     }
 
     /// Called regardless of connection security
@@ -152,25 +207,6 @@ impl Client {
     }
 }
 
-extern "C" fn transmit_packet(
-    _context: *mut c_void,
-    _index: i32,
-    _packet_sequence: u16,
-    _packet_data: *mut u8,
-    _packet_bytes: i32,
-) {
-}
-
-extern "C" fn process_packet(
-    _context: *mut c_void,
-    _index: i32,
-    _packet_sequence: u16,
-    _packet_data: *mut u8,
-    _packet_bytes: i32,
-) -> i32 {
-    0
-}
-
 fn generate_insecure_connect_token(
     config: &ClientServerConfig,
     private_key: &[u8; PRIVATE_KEY_BYTES],
@@ -209,6 +245,37 @@ fn generate_insecure_connect_token(
     }
 
     Some(connect_token)
+}
+
+fn client_state_from_netcode_state(state: i32) -> ClientState {
+    if state < NETCODE_CLIENT_STATE_DISCONNECTED as i32 {
+        ClientState::Error
+    } else if state == NETCODE_CLIENT_STATE_DISCONNECTED as i32 {
+        ClientState::Disconnected
+    } else if state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_REQUEST as i32 {
+        ClientState::Connecting
+    } else {
+        ClientState::Connected
+    }
+}
+
+extern "C" fn transmit_packet(
+    _context: *mut c_void,
+    _index: i32,
+    _packet_sequence: u16,
+    _packet_data: *mut u8,
+    _packet_bytes: i32,
+) {
+}
+
+extern "C" fn process_packet(
+    _context: *mut c_void,
+    _index: i32,
+    _packet_sequence: u16,
+    _packet_data: *mut u8,
+    _packet_bytes: i32,
+) -> i32 {
+    0
 }
 
 extern "C" fn state_change_callback(context: *mut c_void, previous: i32, current: i32) {

@@ -1,3 +1,4 @@
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConnectionErrorLevel {
     /// No error. All is well.
     None,
@@ -15,11 +16,26 @@ pub struct Connection {
     // message_factory: MessageFactory,
     // connection_config: ConnectionConfig,
     // channel: Vec<Channel>,
-    // error_level: ConnectionErrorLevel,
+    error_level: ConnectionErrorLevel,
 }
 
 impl Connection {
     pub(crate) fn new() -> Connection {
-        Connection {}
+        // TODO
+        Connection {
+            error_level: ConnectionErrorLevel::None,
+        }
+    }
+
+    pub(crate) fn advance_time(&mut self, new_time: f64) {
+        // TODO
+    }
+
+    pub(crate) fn error_level(&self) -> ConnectionErrorLevel {
+        self.error_level
+    }
+
+    pub(crate) unsafe fn process_acks(&mut self, acks: *mut u16, num_acks: i32) {
+        // TODO
     }
 }

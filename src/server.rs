@@ -1,7 +1,7 @@
 use std::ffi::{c_void, CStr, CString};
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
-use crate::connection::Connection;
+use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default};
 
 pub struct Server {
@@ -189,8 +189,49 @@ impl Server {
 
     pub fn receive_packets(&mut self) {}
 
-    pub fn advance_time(&mut self, time: f64) {
-        self.time += time;
+    pub fn advance_time(&mut self, new_time: f64) {
+        if !self.server.is_null() {
+            unsafe { netcode_server_update(self.server, self.time) }
+        }
+
+        {
+            /* yojimbo BaseServer::AdvanceTime */
+            self.time = new_time;
+            if !self.running() {
+                return;
+            }
+            assert_eq!(self.client_connection.len(), self.client_endpoint.len());
+            for (i, (conn, endpoint)) in self
+                .client_connection
+                .iter_mut()
+                .zip(self.client_endpoint.iter_mut())
+                .enumerate()
+            {
+                conn.advance_time(self.time);
+                if conn.error_level() != ConnectionErrorLevel::None {
+                    log::error!(
+                        "client {} connection is in error state. disconnecting client",
+                        i
+                    );
+                    // TODO: eek disconnecting
+                    continue;
+                }
+                unsafe {
+                    reliable_endpoint_update(*endpoint, self.time);
+                    let mut num_acks = 0;
+                    let acks = reliable_endpoint_get_acks(*endpoint, &mut num_acks);
+                    conn.process_acks(acks, num_acks);
+                    reliable_endpoint_clear_acks(*endpoint);
+                }
+                if let Some(_) = &self.network_simulator {
+                    unimplemented!("advance network simulator time");
+                }
+            }
+        }
+
+        if let Some(_) = &self.network_simulator {
+            unimplemented!("push packets through the network simulator");
+        }
     }
 
     pub fn running(&self) -> bool {
@@ -207,7 +248,7 @@ impl Server {
         packet_bytes: i32,
     ) {
         if let Some(_) = self.network_simulator {
-            unimplemented!(); // TODO
+            unimplemented!();
         }
         unsafe {
             netcode_server_send_packet(self.server, client_index, packet_data, packet_bytes);
