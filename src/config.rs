@@ -92,7 +92,7 @@ impl Default for ClientServerConfig {
     }
 }
 
-pub(crate) type ReliableTransmitPacketFn = extern "C" fn(
+pub(crate) type ReliableTransmitPacketFn = unsafe extern "C" fn(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
@@ -100,7 +100,7 @@ pub(crate) type ReliableTransmitPacketFn = extern "C" fn(
     packet_bytes: i32,
 );
 
-pub(crate) type ReliableProcessPacketFn = extern "C" fn(
+pub(crate) type ReliableProcessPacketFn = unsafe extern "C" fn(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
