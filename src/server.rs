@@ -14,8 +14,6 @@ pub struct Server {
     config: ClientServerConfig,
     // ///< The adapter specifies the allocator to use, and the message factory class.
     // // TODO: adapter: Adapter,
-    // ///< Optional serialization context.
-    // // TODO: context: void*,
     /// Maximum number of clients supported.
     max_clients: usize,
     /// True if server is currently running, eg. after "Start" is called, before "Stop".
@@ -72,7 +70,9 @@ impl Server {
 
             self.running = true;
             self.max_clients = max_clients;
-            // TODO: network simulator
+            if self.config.network_simulator {
+                unimplemented!("initialize network simulator");
+            }
 
             /* PORT:
                 initialize adapter
@@ -106,9 +106,10 @@ impl Server {
                 reliable_config.transmit_packet_function = Some(transmit_packet);
                 reliable_config.process_packet_function = Some(process_packet);
 
-                reliable_config.allocator_context = std::ptr::null_mut();
-                reliable_config.allocate_function = None;
-                reliable_config.free_function = None;
+                // do not override `reliable`'s default allocator
+                // reliable_config.allocator_context = std::ptr::null_mut();
+                // reliable_config.allocate_function = None;
+                // reliable_config.free_function = None;
 
                 unsafe {
                     let endpoint = reliable_endpoint_create(&mut reliable_config, self.time);
@@ -125,7 +126,7 @@ impl Server {
                 .private_key
                 .copy_from_slice(&self.private_key);
 
-            // TODO: default_server_config sets a default allocate function (reliable.io checks if the function is null... more often)
+            // do not override `netcode`'s default allocator
             // netcode_config.allocator_context = std::ptr::null_mut();
             // netcode_config.allocate_function = None;
             // netcode_config.free_function = None;
@@ -137,7 +138,6 @@ impl Server {
             let server_address = CString::new(self.address.clone()).unwrap();
 
             self.server = unsafe {
-                // TODO: netcode really better not touch it... is this cast OK?
                 netcode_server_create(
                     server_address.as_ptr() as *mut _,
                     &mut netcode_config,
