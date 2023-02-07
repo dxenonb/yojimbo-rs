@@ -276,7 +276,6 @@ fn generate_insecure_connect_token(
     client_id: u64,
     server_addresses: &[&str],
 ) -> Option<[u8; NETCODE_CONNECT_TOKEN_BYTES as _]> {
-    // TODO: validate that netcode doesn't read MaxAddressLength (that it stops at the null byte or earlier)
     let mut server_address_strings = Vec::new();
     let mut server_address_string_pointers = Vec::new();
     for addr in server_addresses {
