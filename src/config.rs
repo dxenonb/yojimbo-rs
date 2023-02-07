@@ -143,17 +143,18 @@ impl ClientServerConfig {
 
 #[derive(Clone, Copy)]
 pub struct ChannelConfig {
-    kind: ChannelType,
-    disable_blocks: bool,
-    sent_packet_buffer_size: usize,
-    message_send_queue_size: usize,
-    message_receive_queue_size: usize,
-    max_messages_per_packet: usize,
-    packet_budget: i32,
-    max_block_size: usize,
-    block_fragment_size: usize,
-    message_resend_time: f32,
-    block_fragment_resend_time: f32,
+    pub kind: ChannelType,
+    pub disable_blocks: bool,
+    pub sent_packet_buffer_size: usize,
+    pub message_send_queue_size: usize,
+    pub message_receive_queue_size: usize,
+    pub max_messages_per_packet: usize,
+    /// Maximum amount of message data to write to the packet for this channel (bytes). Specifying None means the channel can use up to the rest of the bytes remaining in the packet.
+    pub packet_budget: Option<usize>,
+    pub max_block_size: usize,
+    pub block_fragment_size: usize,
+    pub message_resend_time: f32,
+    pub block_fragment_resend_time: f32,
 }
 
 impl ChannelConfig {
@@ -165,7 +166,7 @@ impl ChannelConfig {
             message_send_queue_size: 1024,
             message_receive_queue_size: 1024,
             max_messages_per_packet: 256,
-            packet_budget: -1,
+            packet_budget: None,
             max_block_size: 256 * 1024,
             block_fragment_size: 1024,
             message_resend_time: 0.1,
@@ -179,7 +180,7 @@ impl ChannelConfig {
 }
 
 /// Determines the reliability and ordering guarantees for a channel.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelType {
     ReliableOrdered,
     UnreliableUnordered,
