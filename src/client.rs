@@ -5,6 +5,8 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
+type M = ();
+
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
 pub enum ClientState {
@@ -34,7 +36,7 @@ impl ClientState {
 pub struct Client {
     config: ClientServerConfig,
     endpoint: *mut reliable_endpoint_t,
-    connection: Option<Connection>,
+    connection: Option<Connection<M>>,
     network_simulator: Option<()>,
     client_state: ClientState,
     client_index: usize,
@@ -185,7 +187,7 @@ impl Client {
 
     /// Called regardless of connection security
     fn connect_internal(&mut self) {
-        let connection = Connection::new(&self.config.connection);
+        let connection = Connection::new(&self.config.connection, self.time);
         self.connection = Some(connection);
         if let Some(_) = self.network_simulator {
             unimplemented!();

@@ -1,213 +1,384 @@
-use std::marker::PhantomData;
+use std::{collections::VecDeque, mem::size_of};
 
-use crate::config::ChannelConfig;
+use byteorder::{LittleEndian, WriteBytesExt};
 
-// TODO
-type SequenceBuffer<T> = PhantomData<T>;
+use crate::config::{ChannelConfig, ChannelType};
+
+pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
+pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
+pub(crate) const CONSERVATIVE_CHANNEL_HEADER_BITS: usize = 32;
+pub(crate) const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
+
+// // TODO
+// type SequenceBuffer<T> = PhantomData<T>;
 
 // TODO: channel counters
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelErrorLevel {
-    ///< No error. All is well.
+    /// No error. All is well.
     None,
-    ///< This channel has desynced. This means that the connection protocol has desynced and cannot recover. The client should be disconnected.
+    /// This channel has desynced. This means that the connection protocol has desynced and cannot recover. The client should be disconnected.
     Desync,
-    ///< The user tried to send a message but the send queue was full. This will assert out in development, but in production it sets this error on the channel.
+    /// The user tried to send a message but the send queue was full. This will assert out in development, but in production it sets this error on the channel.
     SendQueueFull,
-    ///< The channel received a packet containing data for blocks, but this channel is configured to disable blocks. See ChannelConfig::disableBlocks.
+    /// The channel received a packet containing data for blocks, but this channel is configured to disable blocks. See ChannelConfig::disableBlocks.
     BlocksDisabled,
-    ///< Serialize read failed for a message sent to this channel. Check your message serialize functions, one of them is returning false on serialize read. This can also be caused by a desync in message read and write.
+    /// Serialize read failed for a message sent to this channel. Check your message serialize functions, one of them is returning false on serialize read. This can also be caused by a desync in message read and write.
     FailedToSerialize,
-    ///< The channel tried to allocate some memory but couldn't.
+    /// The channel tried to allocate some memory but couldn't.
     OutOfMemory,
 }
 
-pub trait Channel {
-    fn reset(&mut self);
+pub struct Channel<M> {
+    config: ChannelConfig,
+    channel_index: usize,
+    time: f64,
+    error_level: ChannelErrorLevel,
+    processor: Unreliable<M>,
+    // message_factory: MessageFactory,
+    // TODO: uint64_t m_counters[CHANNEL_COUNTER_NUM_COUNTERS],
+}
 
-    fn can_send_message(&self) -> bool;
-    fn has_messages_to_send(&self) -> bool;
+impl<M> Channel<M> {
+    pub(crate) fn new(config: ChannelConfig, channel_index: usize, time: f64) -> Channel<M> {
+        if !matches!(config.kind, ChannelType::UnreliableUnordered) {
+            unimplemented!("reliable ordered channels not implemented");
+        }
+        let processor = Unreliable::new(&config);
+        Channel {
+            config,
+            channel_index,
+            error_level: ChannelErrorLevel::None,
+            time,
+            processor,
+        }
+    }
 
-    /// Queue a message to be sent across this channel.
-    fn send_message(&mut self, message: &Message, context: TODO);
-
-    /// Pops the next message off the receive queue if one is available.
-    ///
-    /// TODO: Yojimbo says caller takes ownership, but returns a pointer.
-    fn receive_message(&mut self) -> Option<Message>;
+    pub(crate) fn reset(&mut self) {
+        self.set_error_level(ChannelErrorLevel::None);
+        self.processor.reset();
+        // COUNTERS: reset
+    }
 
     /// Advance channel time.
     ///
     /// Called by Connection::advance_time for each channel configured on the connection.
-    fn advance_time(&mut self, time: f64);
+    pub(crate) fn advance_time(&mut self, time: f64) {}
 
     /// Get channel packet data for this channel.
-    ///
-    /// TODO: this sounds v unsafe!
-    fn packet_data(
+    pub(crate) fn packet_data(
         &mut self,
         packet_sequence: u16,
         available_bits: usize,
-        data: &mut ChannelPacketData,
-    ) -> i32;
-    fn process_packet_data(&mut self);
+    ) -> (ChannelPacketData<M>, usize) {
+        self.processor.packet_data(
+            &self.config,
+            self.channel_index,
+            packet_sequence,
+            available_bits,
+        )
+    }
 
-    fn process_ack(&mut self, packet_sequence: u16);
+    fn process_packet_data(&mut self) {}
 
-    fn error_level(&self) -> ChannelErrorLevel;
+    fn process_ack(&mut self, packet_sequence: u16) {}
 
-    fn channel_index(&self) -> i32;
+    pub(crate) fn error_level(&self) -> ChannelErrorLevel {
+        self.error_level
+    }
+
+    // TODO: remove? fn channel_index(&self) -> i32;
 
     // TODO: get_counter/counter, reset_counters
 
-    /// TODO: determine if we want this on the trait
-    ///
-    /// Fielder's docs say "All errors go through this function to make debug logging easier."
-    fn set_error_level(&mut self, level: ChannelErrorLevel);
+    /// All errors go through this function to make debug logging easier.
+    fn set_error_level(&mut self, level: ChannelErrorLevel) {
+        if self.error_level != level && level != ChannelErrorLevel::None {
+            log::error!("channel went into error state: {:?}", level);
+        }
+        self.error_level = level;
+    }
+
+    fn can_send_message(&self) -> bool {
+        self.processor.can_send_message()
+    }
+
+    fn has_messages_to_send(&self) -> bool {
+        self.processor.has_messages_to_send()
+    }
+
+    // /// Queue a message to be sent across this channel.
+    // fn send_message(&mut self, message: &Message, context: TODO);
+
+    // /// Pops the next message off the receive queue if one is available.
+    // ///
+    // /// TODO: Yojimbo says caller takes ownership, but returns a pointer.
+    // fn receive_message(&mut self) -> Option<Message>;
 }
 
-pub struct BaseChannel {
-    // TODO: allocator
-    config: ChannelConfig,
-    channel_index: i32,
-    time: f64,
-    error_level: ChannelErrorLevel,
-    message_factory: MessageFactory,
-    // TODO: uint64_t m_counters[CHANNEL_COUNTER_NUM_COUNTERS],
+/// Messages sent across this channel are not guaranteed to arrive, and may be received in a different order than they were sent.
+/// This channel type is best used for time critical data like snapshots and object state.
+struct Unreliable<M = ()> {
+    message_send_queue: VecDeque<M>,
+    message_receive_queue: VecDeque<M>,
 }
 
-pub struct ReliableOrderedChannel {
-    /// Id of the next message to be added to the send queue.
-    send_message_id: u16,
-    /// Id of the next message to be added to the receive queue.
-    receive_message_id: u16,
-    /// Id of the oldest unacked message in the send queue.
-    oldest_unacked_message_id: u16,
-    /// Stores information per sent connection packet about messages and block data included in each packet. Used to walk from connection packet level acks to message and data block fragment level acks.
-    sent_packets: SequenceBuffer<SentPacketEntry>,
-    /// Message send queue.
-    message_send_queue: SequenceBuffer<MessageSendQueueEntry>,
-    /// Message receive queue.
-    message_receive_queue: SequenceBuffer<MessageReceiveQueueEntry>,
-    /// Array of n message ids per sent connection packet. Allows the maximum number of messages per-packet to be allocated dynamically.
-    sent_packet_message_ids: Vec<u16>,
-    /// Data about the block being currently sent.
-    send_block: SendBlockData,
-    /// Data about the block being currently received.
-    receive_block: ReceiveBlockData,
-}
+impl<M> Unreliable<M> {
+    fn new(config: &ChannelConfig) -> Unreliable<M> {
+        debug_assert_eq!(config.kind, ChannelType::UnreliableUnordered);
 
-struct MessageSendQueueEntry {
-    message: Message,
-    time_last_sent: f64,
-    measured_bits: u32, // TODO: default: 31 - the number of bits the message takes up in a bit stream
-    block: u32, // TODO: 1 if this is a block message. Block messages are treated differently to regular messages when sent over a reliable-ordered channel.
-}
+        let send_capacity = std::cmp::max(config.message_send_queue_size / size_of::<M>(), 1);
+        let receive_capacity = std::cmp::max(config.message_receive_queue_size / size_of::<M>(), 1);
 
-struct MessageReceiveQueueEntry {
-    message: Message,
-}
-
-struct SentPacketEntry {
-    /// The time the packet was sent. Used to estimate round trip time.
-    time_sent: f64,
-    /// Array of message ids. Dynamically allocated because the user can configure the maximum number of messages in a packet per-channel with ChannelConfig::maxMessagesPerPacket.
-    message_ids: Vec<u16>,
-    /// The number of message ids in in the array.
-    num_message_ids: u32,
-    /// 1 if this packet has been acked.
-    acked: u32,
-    /// 1 if this packet contains a fragment of a block message.
-    block: u64,
-    /// The block message id. Valid only if "block" is 1.
-    block_message_id: u64,
-    /// The block fragment id. Valid only if "block" is 1.
-    block_fragment_id: u16,
-}
-
-struct SendBlockData {
-    /// True if we are currently sending a block.
-    active: bool,
-    /// The size of the block (bytes).
-    block_size: i32,
-    /// Number of fragments in the block being sent.
-    num_fragments: i32,
-    /// Number of acked fragments in the block being sent.
-    num_acked_fragments: i32,
-    /// The message id the block is attached to.
-    block_message_id: u16,
-    /// Has fragment n been received?
-    acked_fragment: BitArray,
-    /// Last time fragment was sent.
-    fragment_send_time: f64,
-}
-
-struct ReceiveBlockData {
-    /// True if we are currently receiving a block.
-    active: bool,
-    /// The number of fragments in this block
-    num_fragments: i32,
-    /// The number of fragments received.
-    num_received_fragments: i32,
-    /// The message id corresponding to the block.
-    message_id: u16,
-    /// Message type of the block being received.
-    message_type: i32,
-    /// Block size in bytes.
-    block_size: u32,
-    /// Has fragment n been received?
-    received_fragment: BitArray,
-    /// Block data for receive.
-    block_data: u32,
-    /// Block message (sent with fragment 0).
-    block_message: BlockMessage,
-}
-
-impl ReceiveBlockData {
-    fn new() -> ReceiveBlockData {
-        ReceiveBlockData {
-            active: true,
-            num_fragments: 0,
-            num_received_fragments: BitArray::new(),
-            message_id: 0,
-            message_type: 0,
-            block_size: 0,
-            received_fragment: BitArray::new(),
-            block_data: BlockData::new(),
-            block_message: (),
+        Unreliable {
+            message_send_queue: VecDeque::with_capacity(send_capacity),
+            message_receive_queue: VecDeque::with_capacity(receive_capacity),
         }
     }
 
     fn reset(&mut self) {
-        self.active = false;
-        self.num_fragments = 0;
-        self.num_received_fragments = 0;
-        self.message_id = 0;
-        self.message_type = 0;
-        self.block_size = 0;
+        self.message_send_queue.clear();
+        self.message_receive_queue.clear();
+    }
+
+    fn can_send_message(&self) -> bool {
+        debug_assert!(self.message_send_queue.capacity() > 0);
+        self.message_send_queue.len() == self.message_send_queue.capacity()
+    }
+
+    fn has_messages_to_send(&self) -> bool {
+        self.message_send_queue.is_empty()
+    }
+
+    // TODO: send and receive messages
+
+    fn packet_data(
+        &mut self,
+        config: &ChannelConfig,
+        channel_index: usize,
+        packet_sequence: u16,
+        mut available_bits: usize,
+    ) -> (ChannelPacketData<M>, usize) {
+        if self.message_send_queue.is_empty() {
+            return (ChannelPacketData::empty(), 0);
+        }
+
+        if let Some(packet_budget) = config.packet_budget {
+            if packet_budget == 0 {
+                log::warn!("packet_budget is 0, so no messages can be written to this channel");
+            }
+            available_bits = std::cmp::min(packet_budget * 8, available_bits);
+        }
+
+        let mut used_bits = CONSERVATIVE_MESSAGE_HEADER_BITS;
+        let give_up_bits = 4 * 8;
+
+        let mut messages = Vec::new();
+
+        loop {
+            let message = match self.message_send_queue.pop_front() {
+                Some(message) => message,
+                None => break,
+            };
+
+            if available_bits.saturating_sub(used_bits) < give_up_bits {
+                break;
+            }
+
+            if messages.len() == config.max_messages_per_packet {
+                break;
+            }
+
+            // TODO: block message
+
+            // TODO: something analagous to measure stream
+            // - assuming Message is an enum (and does not wrap a pointer to something), it should always be the same size
+            // - the (network) serialized version should generally be smaller
+            let message_bits = size_of::<M>();
+
+            if used_bits + message_bits > available_bits {
+                continue;
+            }
+
+            used_bits += message_bits;
+
+            assert!(used_bits <= available_bits);
+
+            messages.push(message);
+        }
+
+        if messages.is_empty() {
+            return (ChannelPacketData::empty(), 0);
+        }
+
+        let packet_data = ChannelPacketData {
+            channel_index: channel_index as _,
+            messages,
+        };
+
+        (packet_data, used_bits)
+    }
+
+    fn process_packet_data(&mut self) {}
+}
+
+pub(crate) struct ChannelPacketData<M> {
+    pub(crate) channel_index: u32, // TODO: usize
+    pub(crate) messages: Vec<M>,
+}
+
+impl<M> ChannelPacketData<M> {
+    pub(crate) fn serialize(&self, dest: &mut &mut [u8]) {
+        dest.write_u16::<LittleEndian>(self.channel_index.try_into().unwrap())
+            .unwrap();
+
+        // TODO: block messages
+
+        // TODO: serialize reliable messages
+
+        self.serialize_unordered(dest);
+    }
+
+    fn serialize_unordered(&self, dest: &mut &mut [u8]) {
+        let has_messages = self.messages.len() > 0;
+        dest.write_u8(if has_messages { 1 } else { 0 }).unwrap();
+
+        if !has_messages {
+            return;
+        }
+
+        // TODO: pass config - check maxMessagesPerPacket < MAX
+        assert!(self.messages.len() < u8::MAX as usize);
+        dest.write_u8(self.messages.len().try_into().unwrap())
+            .unwrap();
+
+        // TODO: serialize the message
+        dest.write_u64::<LittleEndian>(12345678).unwrap();
+    }
+
+    fn empty() -> ChannelPacketData<M> {
+        ChannelPacketData {
+            channel_index: u32::MAX,
+            messages: Vec::new(),
+        }
     }
 }
 
-pub struct ChannelPacketData {
-    // TODO: types are a bit different in rust?
-    data: ChannelPacketDataInner,
-}
+// struct Reliable {
+//     /// Id of the next message to be added to the send queue.
+//     send_message_id: u16,
+//     /// Id of the next message to be added to the receive queue.
+//     receive_message_id: u16,
+//     /// Id of the oldest unacked message in the send queue.
+//     oldest_unacked_message_id: u16,
+//     /// Stores information per sent connection packet about messages and block data included in each packet. Used to walk from connection packet level acks to message and data block fragment level acks.
+//     // sent_packets: SequenceBuffer<SentPacketEntry>,
+//     /// Message send queue.
+//     // message_send_queue: SequenceBuffer<MessageSendQueueEntry>,
+//     /// Message receive queue.
+//     // message_receive_queue: SequenceBuffer<MessageReceiveQueueEntry>,
+//     /// Array of n message ids per sent connection packet. Allows the maximum number of messages per-packet to be allocated dynamically.
+//     sent_packet_message_ids: Vec<u16>,
+//     /// Data about the block being currently sent.
+//     // send_block: SendBlockData,
+//     /// Data about the block being currently received.
+//     // receive_block: ReceiveBlockData,
+// }
 
-struct MessageData {}
+// impl Reliable {
+//     fn new() -> Reliable {
+//         Reliable {}
+//     }
+// }
 
-struct BlockData {}
+// struct MessageSendQueueEntry {
+//     message: Message,
+//     time_last_sent: f64,
+//     measured_bits: u32, // TODO: default: 31 - the number of bits the message takes up in a bit stream
+//     block: u32, // TODO: 1 if this is a block message. Block messages are treated differently to regular messages when sent over a reliable-ordered channel.
+// }
 
-enum ChannelPacketDataInner {
-    Message(MessageData),
-    Block(BlockData),
-}
+// struct MessageReceiveQueueEntry {
+//     message: Message,
+// }
 
-impl ChannelPacketData {
-    fn new() {}
-    // TODO: fn free(message factory?) {}
+// struct SentPacketEntry {
+//     /// The time the packet was sent. Used to estimate round trip time.
+//     time_sent: f64,
+//     /// Array of message ids. Dynamically allocated because the user can configure the maximum number of messages in a packet per-channel with ChannelConfig::maxMessagesPerPacket.
+//     message_ids: Vec<u16>,
+//     /// The number of message ids in in the array.
+//     num_message_ids: u32,
+//     /// 1 if this packet has been acked.
+//     acked: u32,
+//     /// 1 if this packet contains a fragment of a block message.
+//     block: u64,
+//     /// The block message id. Valid only if "block" is 1.
+//     block_message_id: u64,
+//     /// The block fragment id. Valid only if "block" is 1.
+//     block_fragment_id: u16,
+// }
 
-    // TODO: serialize template method
-}
+// struct SendBlockData {
+//     /// True if we are currently sending a block.
+//     active: bool,
+//     /// The size of the block (bytes).
+//     block_size: i32,
+//     /// Number of fragments in the block being sent.
+//     num_fragments: i32,
+//     /// Number of acked fragments in the block being sent.
+//     num_acked_fragments: i32,
+//     /// The message id the block is attached to.
+//     block_message_id: u16,
+//     /// Has fragment n been received?
+//     acked_fragment: BitArray,
+//     /// Last time fragment was sent.
+//     fragment_send_time: f64,
+// }
 
-// TODO: unreliable ordered channel
+// struct ReceiveBlockData {
+//     /// True if we are currently receiving a block.
+//     active: bool,
+//     /// The number of fragments in this block
+//     num_fragments: i32,
+//     /// The number of fragments received.
+//     num_received_fragments: i32,
+//     /// The message id corresponding to the block.
+//     message_id: u16,
+//     /// Message type of the block being received.
+//     message_type: i32,
+//     /// Block size in bytes.
+//     block_size: u32,
+//     /// Has fragment n been received?
+//     received_fragment: BitArray,
+//     /// Block data for receive.
+//     block_data: u32,
+//     /// Block message (sent with fragment 0).
+//     block_message: BlockMessage,
+// }
+
+// impl ReceiveBlockData {
+//     fn new() -> ReceiveBlockData {
+//         ReceiveBlockData {
+//             active: true,
+//             num_fragments: 0,
+//             num_received_fragments: BitArray::new(),
+//             message_id: 0,
+//             message_type: 0,
+//             block_size: 0,
+//             received_fragment: BitArray::new(),
+//             block_data: BlockData::new(),
+//             block_message: (),
+//         }
+//     }
+
+//     fn reset(&mut self) {
+//         self.active = false;
+//         self.num_fragments = 0;
+//         self.num_received_fragments = 0;
+//         self.message_id = 0;
+//         self.message_type = 0;
+//         self.block_size = 0;
+//     }
+// }

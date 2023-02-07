@@ -1,4 +1,12 @@
-use crate::config::{ChannelConfig, ConnectionConfig};
+use byteorder::{LittleEndian, WriteBytesExt};
+
+use crate::{
+    channel::{
+        Channel, ChannelPacketData, CONSERVATIVE_CHANNEL_HEADER_BITS,
+        CONSERVATIVE_PACKET_HEADER_BITS,
+    },
+    config::ConnectionConfig,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConnectionErrorLevel {
@@ -15,20 +23,20 @@ pub enum ConnectionErrorLevel {
 }
 
 /// Sends and receives messages across a set of user defined channels.
-pub(crate) struct Connection {
+pub(crate) struct Connection<M> {
     // message_factory: MessageFactory,
     // connection_config: ConnectionConfig,
-    channels: Vec<Channel>,
+    channels: Vec<Channel<M>>,
     error_level: ConnectionErrorLevel,
 }
 
-impl Connection {
-    pub(crate) fn new(config: &ConnectionConfig) -> Connection {
+impl<M> Connection<M> {
+    pub(crate) fn new(config: &ConnectionConfig, time: f64) -> Connection<M> {
         assert!(config.num_channels >= 1);
 
         let mut channels = Vec::with_capacity(config.num_channels);
-        for channel_config in &config.channels {
-            channels.push(Channel::new(channel_config));
+        for (channel_index, channel_config) in config.channels.iter().enumerate() {
+            channels.push(Channel::new(channel_config.clone(), channel_index, time));
         }
 
         Connection {
@@ -67,15 +75,33 @@ impl Connection {
 
     /// Generate a packet.
     ///
-    /// Returns None if no packet is generated. Else returns Some(bytes). Bytes is i32 because C is dumb (netcode expect an i32).
-    pub(crate) unsafe fn generate_packet(
-        &mut self,
-        _packet_sequence: u16,
-        _packet_data: *const u8,
-        _max_packet_size: usize,
-    ) -> Option<i32> {
-        // TODO
-        None
+    /// Advances `packet_data` as it writes.
+    pub(crate) fn generate_packet(&mut self, packet_sequence: u16, packet_data: &mut &mut [u8]) {
+        if self.channels.len() == 0 {
+            return;
+        }
+
+        // TODO: cache
+        let mut channel_data = Vec::new();
+
+        let max_packet_size = packet_data.len();
+        let mut available_bits = max_packet_size * 8 - CONSERVATIVE_PACKET_HEADER_BITS;
+
+        for channel in &mut self.channels {
+            let (packet_data, packet_data_bits) =
+                channel.packet_data(packet_sequence, available_bits);
+            if packet_data_bits > 0 {
+                available_bits -= CONSERVATIVE_CHANNEL_HEADER_BITS;
+                available_bits -= packet_data_bits;
+                channel_data.push(packet_data);
+            }
+        }
+
+        if !channel_data.is_empty() {
+            let packet = ConnectionPacket::new(channel_data);
+            packet.serialize(packet_data);
+            // TODO: serialize check
+        }
     }
 
     pub(crate) fn reset(&mut self) {
@@ -86,15 +112,29 @@ impl Connection {
     }
 }
 
-struct Channel;
+struct ConnectionPacket<M> {
+    channel_data: Vec<ChannelPacketData<M>>,
+}
 
-impl Channel {
-    fn new(config: &ChannelConfig) -> Channel {
-        // TODO
-        Channel
+impl<M> ConnectionPacket<M> {
+    fn new(channel_data: Vec<ChannelPacketData<M>>) -> ConnectionPacket<M> {
+        ConnectionPacket { channel_data }
     }
 
-    fn reset(&mut self) {
-        // TODO
+    fn serialize(&self, dest: &mut &mut [u8]) {
+        assert!(self.channel_data.len() < u16::MAX as usize);
+
+        let max_packet_size = dest.len();
+        dest.write_u16::<LittleEndian>(self.channel_data.len() as _)
+            .unwrap();
+        assert!(max_packet_size - dest.len() < CONSERVATIVE_PACKET_HEADER_BITS);
+
+        if self.channel_data.is_empty() {
+            return;
+        }
+
+        for channel_data in &self.channel_data {
+            channel_data.serialize(dest);
+        }
     }
 }

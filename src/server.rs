@@ -4,6 +4,8 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default};
 
+type M = ();
+
 pub struct Server {
     // ///< Allocator passed in to constructor.
     // ///< The block of memory backing the global allocator. Allocated with m_allocator.
@@ -23,7 +25,7 @@ pub struct Server {
     // ///< Array of per-client message factories. This silos message allocations per-client slot.
     // client_message_factory: Vec<MessageFactory>,
     /// Array of per-client connection classes. This is how messages are exchanged with clients.
-    client_connection: Vec<Connection>,
+    client_connection: Vec<Connection<M>>,
     /// Array of per-client reliable.io endpoints.
     client_endpoint: Vec<*mut reliable_endpoint_t>,
     /// The network simulator used to simulate packet loss, latency, jitter etc. Optional.
@@ -83,7 +85,7 @@ impl Server {
             assert!(self.client_endpoint.is_empty());
             for i in 0..max_clients {
                 self.client_connection
-                    .push(Connection::new(&self.config.connection));
+                    .push(Connection::new(&self.config.connection, self.time));
 
                 let mut reliable_config =
                     gf_init_default!(reliable_config_t, reliable_default_config);
@@ -199,20 +201,20 @@ impl Server {
             if !is_client_connected(self.server, client_index) {
                 continue;
             }
-            let packet_data = &mut self.packet_buffer[..];
-            unsafe {
-                assert_eq!(packet_data.len(), self.config.connection.max_packet_size);
-                let packet_sequence = reliable_endpoint_next_packet_sequence(*endpoint);
-                let packet_bytes = conn.generate_packet(
-                    packet_sequence,
-                    packet_data.as_mut_ptr(),
-                    packet_data.len(),
-                );
-                if let Some(packet_bytes) = packet_bytes {
+            let packet_sequence = unsafe { reliable_endpoint_next_packet_sequence(*endpoint) };
+            let packet_data_size = self.packet_buffer.len();
+            assert_eq!(packet_data_size, self.config.connection.max_packet_size);
+            let packet_data = &mut &mut self.packet_buffer[..];
+            conn.generate_packet(packet_sequence, packet_data);
+            let written_slice_size = packet_data_size - packet_data.len();
+
+            if written_slice_size > 0 {
+                let written_slice = &mut self.packet_buffer[..written_slice_size];
+                unsafe {
                     reliable_endpoint_send_packet(
                         *endpoint,
-                        packet_data.as_mut_ptr(),
-                        packet_bytes,
+                        written_slice.as_mut_ptr(),
+                        written_slice.len().try_into().unwrap(),
                     );
                 }
             }
@@ -344,7 +346,7 @@ impl Server {
         }
     }
 
-    fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection {
+    fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection<M> {
         assert!(self.running());
         assert!(client_index > 0);
         let client_index = client_index as usize;
