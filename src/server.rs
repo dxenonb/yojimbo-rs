@@ -82,7 +82,8 @@ impl Server {
             assert!(self.client_connection.is_empty());
             assert!(self.client_endpoint.is_empty());
             for i in 0..max_clients {
-                self.client_connection.push(Connection::new());
+                self.client_connection
+                    .push(Connection::new(&self.config.connection));
 
                 let mut reliable_config =
                     gf_init_default!(reliable_config_t, reliable_default_config);

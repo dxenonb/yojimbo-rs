@@ -1,3 +1,5 @@
+use crate::config::{ChannelConfig, ConnectionConfig};
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConnectionErrorLevel {
     /// No error. All is well.
@@ -12,17 +14,25 @@ pub enum ConnectionErrorLevel {
     ReadPacketFailed,
 }
 
-pub struct Connection {
+/// Sends and receives messages across a set of user defined channels.
+pub(crate) struct Connection {
     // message_factory: MessageFactory,
     // connection_config: ConnectionConfig,
-    // channel: Vec<Channel>,
+    channels: Vec<Channel>,
     error_level: ConnectionErrorLevel,
 }
 
 impl Connection {
-    pub(crate) fn new() -> Connection {
-        // TODO
+    pub(crate) fn new(config: &ConnectionConfig) -> Connection {
+        assert!(config.num_channels >= 1);
+
+        let mut channels = Vec::with_capacity(config.num_channels);
+        for channel_config in &config.channels {
+            channels.push(Channel::new(channel_config));
+        }
+
         Connection {
+            channels,
             error_level: ConnectionErrorLevel::None,
         }
     }
@@ -70,6 +80,21 @@ impl Connection {
 
     pub(crate) fn reset(&mut self) {
         self.error_level = ConnectionErrorLevel::None;
-        // TODO: reset each channel
+        for channel in &mut self.channels {
+            channel.reset();
+        }
+    }
+}
+
+struct Channel;
+
+impl Channel {
+    fn new(config: &ChannelConfig) -> Channel {
+        // TODO
+        Channel
+    }
+
+    fn reset(&mut self) {
+        // TODO
     }
 }

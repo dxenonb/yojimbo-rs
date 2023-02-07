@@ -5,6 +5,7 @@ use crate::gf_init_default;
 use std::ffi::c_void;
 use std::ffi::{CStr, CString};
 
+// TODO: remove maximums?
 const MAX_CLIENTS: u32 = 64;
 const MAX_CHANNELS: usize = 64;
 pub(crate) const NETCODE_KEY_BYTES: usize = 32;
@@ -17,7 +18,7 @@ const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
 const YOJIMBO_DEFAULT_TIMEOUT: i32 = 5;
 
 pub struct ConnectionConfig {
-    pub num_channels: usize,
+    pub num_channels: usize, // TODO: require use of channels.len
     pub max_packet_size: usize,
     pub channels: [ChannelConfig; MAX_CHANNELS],
 }
@@ -32,8 +33,6 @@ impl Default for ConnectionConfig {
     }
 }
 
-// TODO: figure out where ConnectionConfig is used and this is not
-// (yojimbo has CSC inherit from ConnectionConfig)
 pub struct ClientServerConfig {
     pub connection: ConnectionConfig,
     /// Clients can only connect to servers with the same protocol id. Use this for versioning.

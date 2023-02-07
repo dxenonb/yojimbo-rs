@@ -185,7 +185,7 @@ impl Client {
 
     /// Called regardless of connection security
     fn connect_internal(&mut self) {
-        let connection = Connection::new();
+        let connection = Connection::new(&self.config.connection);
         self.connection = Some(connection);
         if let Some(_) = self.network_simulator {
             unimplemented!();
