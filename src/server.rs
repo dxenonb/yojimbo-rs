@@ -245,7 +245,7 @@ impl Server {
 
     pub fn advance_time(&mut self, new_time: f64) {
         if !self.server.is_null() {
-            unsafe { netcode_server_update(self.server, self.time) }
+            unsafe { netcode_server_update(self.server, self.time) };
         }
 
         {
