@@ -2,7 +2,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 
 use crate::{
     channel::{
-        Channel, ChannelPacketData, CONSERVATIVE_CHANNEL_HEADER_BITS,
+        Channel, ChannelErrorLevel, ChannelPacketData, CONSERVATIVE_CHANNEL_HEADER_BITS,
         CONSERVATIVE_PACKET_HEADER_BITS,
     },
     config::ConnectionConfig,
@@ -14,10 +14,10 @@ pub enum ConnectionErrorLevel {
     None,
     /// A channel is in an error state.
     Channel,
-    /// The allocator is an error state.
-    Allocator,
-    /// The message factory is in an error state.
-    MessageFactory,
+    // /// The allocator is an error state.
+    // Allocator,
+    // /// The message factory is in an error state.
+    // MessageFactory,
     /// Failed to read packet. Received an invalid packet?     
     ReadPacketFailed,
 }
@@ -46,7 +46,14 @@ impl<M> Connection<M> {
     }
 
     pub(crate) fn advance_time(&mut self, new_time: f64) {
-        // TODO
+        for channel in &mut self.channels {
+            channel.advance_time(new_time);
+
+            if channel.error_level() != ChannelErrorLevel::None {
+                self.error_level = ConnectionErrorLevel::Channel;
+                return; // VERIFY: should this definitely be a return?
+            }
+        }
     }
 
     pub(crate) fn error_level(&self) -> ConnectionErrorLevel {
