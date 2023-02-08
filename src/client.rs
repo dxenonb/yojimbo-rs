@@ -39,6 +39,7 @@ pub struct Client {
     connection: Option<Connection<M>>,
     network_simulator: Option<()>,
     client_state: ClientState,
+    #[allow(unused)]
     client_index: usize,
     time: f64,
 
