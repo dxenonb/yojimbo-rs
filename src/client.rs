@@ -15,18 +15,17 @@ pub enum ClientState {
 }
 
 impl ClientState {
-    fn try_from_i32(val: i32) -> Option<ClientState> {
+    fn try_from_netcode_client_state_i32(val: i32) -> Option<ClientState> {
         // REFACTOR: I think we can derive this with FromPrimitive in num-traits
         let mapped = match val {
-            -1 => ClientState::Error,
+            3 => ClientState::Connected,
+            1 | 2 => ClientState::Connecting,
             0 => ClientState::Disconnected,
-            1 => ClientState::Connecting,
-            2 => ClientState::Connected,
+            x if x < 0 && x > -7 => ClientState::Error,
             _ => {
                 return None;
             }
         };
-        assert_eq!(val, mapped as _);
         Some(mapped)
     }
 }
@@ -50,7 +49,7 @@ pub struct Client<M> {
 
 impl<M> Client<M> {
     pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client<M> {
-        let packet_buffer = Vec::with_capacity(config.connection.max_packet_size);
+        let packet_buffer = vec![0u8; config.connection.max_packet_size];
         Client {
             config,
             endpoint: std::ptr::null_mut(),
@@ -156,13 +155,15 @@ impl<M> Client<M> {
             let packet_buffer = &mut &mut self.packet_buffer[..];
             connection.generate_packet(packet_sequence, packet_buffer);
             let written_slice_size = packet_buffer_size - packet_buffer.len();
-            unsafe {
-                let written_slice = &mut self.packet_buffer[..written_slice_size];
-                reliable_endpoint_send_packet(
-                    self.endpoint,
-                    written_slice.as_mut_ptr(),
-                    written_slice.len() as _,
-                );
+            if written_slice_size > 0 {
+                unsafe {
+                    let written_slice = &mut self.packet_buffer[..written_slice_size];
+                    reliable_endpoint_send_packet(
+                        self.endpoint,
+                        written_slice.as_mut_ptr(),
+                        written_slice.len() as _,
+                    );
+                }
             }
         }
     }
@@ -400,8 +401,8 @@ unsafe extern "C" fn process_packet<M>(
 
 extern "C" fn state_change_callback<M>(context: *mut c_void, previous: i32, current: i32) {
     let client = context as *mut Client<M>;
-    let previous = ClientState::try_from_i32(previous).unwrap();
-    let current = ClientState::try_from_i32(current).unwrap();
+    let previous = ClientState::try_from_netcode_client_state_i32(previous).unwrap();
+    let current = ClientState::try_from_netcode_client_state_i32(current).unwrap();
     unsafe {
         client
             .as_mut()

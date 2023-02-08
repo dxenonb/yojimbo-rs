@@ -126,6 +126,7 @@ impl<M> Connection<M> {
         // REFACTOR: consider caching
         let mut channel_data = Vec::new();
 
+        assert!(packet_data.len() > 0);
         let max_packet_size = packet_data.len();
         let mut available_bits = max_packet_size * 8 - CONSERVATIVE_PACKET_HEADER_BITS;
 
