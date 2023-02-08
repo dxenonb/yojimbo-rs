@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    log_level(LogLevel::Debug);
+    log_level(LogLevel::Info);
 
     client_main();
 
