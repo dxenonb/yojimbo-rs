@@ -61,7 +61,11 @@ impl<M> Connection<M> {
     }
 
     pub(crate) unsafe fn process_acks(&mut self, acks: *mut u16, num_acks: i32) {
-        // TODO
+        for i in 0..(num_acks as isize) {
+            for channel in &mut self.channels {
+                channel.process_ack(*acks.offset(i));
+            }
+        }
     }
 
     pub(crate) unsafe fn process_packet(

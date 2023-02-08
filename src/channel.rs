@@ -82,7 +82,9 @@ impl<M> Channel<M> {
 
     fn process_packet_data(&mut self) {}
 
-    fn process_ack(&mut self, packet_sequence: u16) {}
+    pub(crate) fn process_ack(&mut self, packet_sequence: u16) {
+        // TODO: implement (only needed for reliable)
+    }
 
     pub(crate) fn error_level(&self) -> ChannelErrorLevel {
         self.error_level
