@@ -5,7 +5,7 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
-type M = ();
+struct Message(u32);
 
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
@@ -33,11 +33,12 @@ impl ClientState {
     }
 }
 
-pub struct Client {
+pub struct Client<M> {
     config: ClientServerConfig,
     endpoint: *mut reliable_endpoint_t,
     connection: Option<Connection<M>>,
     network_simulator: Option<()>,
+    packet_buffer: Vec<u8>,
     client_state: ClientState,
     #[allow(unused)]
     client_index: usize,
@@ -49,13 +50,15 @@ pub struct Client {
     client_id: u64,
 }
 
-impl Client {
-    pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client {
+impl<M> Client<M> {
+    pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client<M> {
+        let packet_buffer = Vec::with_capacity(config.connection.max_packet_size);
         Client {
             config,
             endpoint: std::ptr::null_mut(),
             connection: None,
             network_simulator: None,
+            packet_buffer,
             client_state: ClientState::Disconnected,
             client_index: usize::MAX,
             time,
@@ -145,7 +148,25 @@ impl Client {
     }
 
     pub fn send_packets(&mut self) {
-        // TODO
+        if !self.is_connected() {
+            return;
+        }
+        assert!(!self.client.is_null());
+        let packet_sequence = unsafe { reliable_endpoint_next_packet_sequence(self.endpoint) };
+        if let Some(connection) = &mut self.connection {
+            let packet_buffer_size = self.packet_buffer.len();
+            let packet_buffer = &mut &mut self.packet_buffer[..];
+            connection.generate_packet(packet_sequence, packet_buffer);
+            let written_slice_size = packet_buffer_size - packet_buffer.len();
+            unsafe {
+                let written_slice = &mut self.packet_buffer[..written_slice_size];
+                reliable_endpoint_send_packet(
+                    self.endpoint,
+                    written_slice.as_mut_ptr(),
+                    written_slice.len() as _,
+                );
+            }
+        }
     }
 
     pub fn receive_packets(&mut self) {
@@ -197,8 +218,8 @@ impl Client {
         let mut reliable_config = self.config.new_reliable_config(
             "client endpoint",
             None,
-            transmit_packet,
-            process_packet,
+            transmit_packet::<M>,
+            process_packet::<M>,
         );
         unsafe {
             let endpoint = reliable_endpoint_create(&mut reliable_config, self.time);
@@ -214,7 +235,7 @@ impl Client {
             gf_init_default!(netcode_client_config_t, netcode_default_client_config);
         // TODO: allocator support
         netcode_config.callback_context = self as *mut _ as *mut c_void;
-        netcode_config.state_change_callback = Some(state_change_callback);
+        netcode_config.state_change_callback = Some(state_change_callback::<M>);
         netcode_config.send_loopback_packet_callback = None; // TODO
         let address = CString::new(self.address.as_str()).unwrap();
         self.client = unsafe {
@@ -250,6 +271,24 @@ impl Client {
             unimplemented!();
         } else {
             netcode_client_send_packet(self.client, packet_data, packet_bytes);
+        }
+    }
+
+    unsafe fn process_packet(
+        &mut self,
+        packet_sequence: u16,
+        packet_data: *mut u8,
+        packet_bytes: i32,
+    ) -> i32 {
+        let result = self
+            .connection
+            .as_mut()
+            .expect("client not connected")
+            .process_packet(packet_sequence, packet_data, packet_bytes as _);
+        if result {
+            1
+        } else {
+            0
         }
     }
 
@@ -324,32 +363,36 @@ fn client_state_from_netcode_state(state: i32) -> ClientState {
     }
 }
 
-unsafe extern "C" fn transmit_packet(
+unsafe extern "C" fn transmit_packet<M>(
     context: *mut c_void,
     _index: i32,
     packet_sequence: u16,
     packet_data: *mut u8,
     packet_bytes: i32,
 ) {
-    let client = context as *mut Client;
+    let client = context as *mut Client<M>;
     client
         .as_mut()
         .unwrap()
         .transmit_packet(packet_sequence, packet_data, packet_bytes);
 }
 
-unsafe extern "C" fn process_packet(
-    _context: *mut c_void,
+unsafe extern "C" fn process_packet<M>(
+    context: *mut c_void,
     _index: i32,
-    _packet_sequence: u16,
-    _packet_data: *mut u8,
-    _packet_bytes: i32,
+    packet_sequence: u16,
+    packet_data: *mut u8,
+    packet_bytes: i32,
 ) -> i32 {
-    0
+    let client = context as *mut Client<M>;
+    client
+        .as_mut()
+        .unwrap()
+        .process_packet(packet_sequence, packet_data, packet_bytes)
 }
 
-extern "C" fn state_change_callback(context: *mut c_void, previous: i32, current: i32) {
-    let client = context as *mut Client;
+extern "C" fn state_change_callback<M>(context: *mut c_void, previous: i32, current: i32) {
+    let client = context as *mut Client<M>;
     let previous = ClientState::try_from_i32(previous).unwrap();
     let current = ClientState::try_from_i32(current).unwrap();
     unsafe {

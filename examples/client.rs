@@ -5,6 +5,8 @@ use rust_game_networking::{
     log_level, shutdown, LogLevel, PRIVATE_KEY_BYTES,
 };
 
+struct Message(u32);
+
 fn main() {
     env_logger::init();
 
@@ -27,7 +29,7 @@ fn client_main() {
     println!("client id is {:x}", client_id);
 
     let config = ClientServerConfig::default();
-    let mut client = Client::new("0.0.0.0".to_string(), config, time);
+    let mut client: Client<Message> = Client::new("0.0.0.0".to_string(), config, time);
 
     let server_address = "127.0.0.1:40000".to_string();
 
