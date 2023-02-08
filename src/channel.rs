@@ -30,7 +30,6 @@ pub enum ChannelErrorLevel {
 pub struct Channel<M> {
     config: ChannelConfig,
     channel_index: usize,
-    time: f64,
     error_level: ChannelErrorLevel,
     processor: Unreliable<M>,
     // message_factory: MessageFactory,
@@ -38,7 +37,7 @@ pub struct Channel<M> {
 }
 
 impl<M> Channel<M> {
-    pub(crate) fn new(config: ChannelConfig, channel_index: usize, time: f64) -> Channel<M> {
+    pub(crate) fn new(config: ChannelConfig, channel_index: usize, _time: f64) -> Channel<M> {
         if !matches!(config.kind, ChannelType::UnreliableUnordered) {
             unimplemented!("reliable ordered channels not implemented");
         }
@@ -47,7 +46,6 @@ impl<M> Channel<M> {
             config,
             channel_index,
             error_level: ChannelErrorLevel::None,
-            time,
             processor,
         }
     }
@@ -61,7 +59,9 @@ impl<M> Channel<M> {
     /// Advance channel time.
     ///
     /// Called by Connection::advance_time for each channel configured on the connection.
-    pub(crate) fn advance_time(&mut self, time: f64) {}
+    pub(crate) fn advance_time(&mut self, time: f64) {
+        self.processor.advance_time(time);
+    }
 
     /// Get channel packet data for this channel.
     pub(crate) fn packet_data(
@@ -141,6 +141,10 @@ impl<M> Unreliable<M> {
             message_send_queue: VecDeque::with_capacity(send_capacity),
             message_receive_queue: VecDeque::with_capacity(receive_capacity),
         }
+    }
+
+    fn advance_time(&mut self, _new_time: f64) {
+        /* no-op for unreliable channels */
     }
 
     fn reset(&mut self) {
