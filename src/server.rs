@@ -276,6 +276,7 @@ impl<M> Server<M> {
                         i
                     );
                     // TODO: eek disconnecting
+                    // TODO: on disconnect, clear send queue https://github.com/networkprotocol/yojimbo/issues/129
                     continue;
                 }
                 unsafe {

@@ -436,3 +436,5 @@ impl<M> ChannelPacketData<M> {
 //         self.block_size = 0;
 //     }
 // }
+
+// TODO: fix https://github.com/networkprotocol/yojimbo/issues/138
