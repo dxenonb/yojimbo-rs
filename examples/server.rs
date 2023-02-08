@@ -14,7 +14,7 @@ fn main() {
     shutdown();
 }
 
-struct Message {}
+struct Message(u32);
 
 fn server_main() {
     let mut time = 100.0;

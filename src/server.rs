@@ -1,4 +1,5 @@
 use std::ffi::{c_void, CStr, CString};
+use std::mem::size_of;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
@@ -44,6 +45,12 @@ impl<M> Server<M> {
         time: f64,
     ) -> Server<M> {
         assert_eq!(private_key.len(), NETCODE_KEY_BYTES);
+
+        assert_ne!(
+            size_of::<M>(),
+            0,
+            "Zero sized message types are not supported"
+        );
 
         Server {
             config,
