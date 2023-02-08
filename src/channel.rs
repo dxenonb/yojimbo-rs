@@ -5,12 +5,9 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use crate::config::{ChannelConfig, ChannelType};
 
 pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
-pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
+// pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
 pub(crate) const CONSERVATIVE_CHANNEL_HEADER_BITS: usize = 32;
 pub(crate) const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
-
-// // TODO
-// type SequenceBuffer<T> = PhantomData<T>;
 
 // TODO: channel counters
 
@@ -80,17 +77,17 @@ impl<M> Channel<M> {
         )
     }
 
-    fn process_packet_data(&mut self) {}
+    fn process_packet_data(&mut self) {
+        // TODO
+    }
 
-    pub(crate) fn process_ack(&mut self, packet_sequence: u16) {
+    pub(crate) fn process_ack(&mut self, _packet_sequence: u16) {
         // TODO: implement (only needed for reliable)
     }
 
     pub(crate) fn error_level(&self) -> ChannelErrorLevel {
         self.error_level
     }
-
-    // TODO: remove? fn channel_index(&self) -> i32;
 
     // TODO: get_counter/counter, reset_counters
 
@@ -111,11 +108,9 @@ impl<M> Channel<M> {
     }
 
     // /// Queue a message to be sent across this channel.
-    // fn send_message(&mut self, message: &Message, context: TODO);
+    // fn send_message(&mut self, message: &Message);
 
     // /// Pops the next message off the receive queue if one is available.
-    // ///
-    // /// TODO: Yojimbo says caller takes ownership, but returns a pointer.
     // fn receive_message(&mut self) -> Option<Message>;
 }
 
@@ -159,7 +154,7 @@ impl<M> Unreliable<M> {
         &mut self,
         config: &ChannelConfig,
         channel_index: usize,
-        packet_sequence: u16,
+        _packet_sequence: u16,
         mut available_bits: usize,
     ) -> (ChannelPacketData<M>, usize) {
         if self.message_send_queue.is_empty() {
@@ -222,11 +217,13 @@ impl<M> Unreliable<M> {
         (packet_data, used_bits)
     }
 
-    fn process_packet_data(&mut self) {}
+    fn process_packet_data(&mut self) {
+        // TODO
+    }
 }
 
 pub(crate) struct ChannelPacketData<M> {
-    pub(crate) channel_index: u32, // TODO: usize
+    pub(crate) channel_index: usize,
     pub(crate) messages: Vec<M>,
 }
 
@@ -261,7 +258,7 @@ impl<M> ChannelPacketData<M> {
 
     fn empty() -> ChannelPacketData<M> {
         ChannelPacketData {
-            channel_index: u32::MAX,
+            channel_index: usize::MAX,
             messages: Vec::new(),
         }
     }
@@ -297,8 +294,8 @@ impl<M> ChannelPacketData<M> {
 // struct MessageSendQueueEntry {
 //     message: Message,
 //     time_last_sent: f64,
-//     measured_bits: u32, // TODO: default: 31 - the number of bits the message takes up in a bit stream
-//     block: u32, // TODO: 1 if this is a block message. Block messages are treated differently to regular messages when sent over a reliable-ordered channel.
+//     measured_bits: u32,
+//     block: u32,
 // }
 
 // struct MessageReceiveQueueEntry {
