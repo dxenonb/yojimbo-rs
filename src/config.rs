@@ -24,7 +24,8 @@ impl Default for ConnectionConfig {
         ConnectionConfig {
             num_channels: 1,
             max_packet_size: 8 * 1024,
-            channels: [ChannelConfig::new(ChannelType::ReliableOrdered); MAX_CHANNELS],
+            // TODO: change this back to reliable ordered when implemented
+            channels: [ChannelConfig::new(ChannelType::UnreliableUnordered); MAX_CHANNELS],
         }
     }
 }
@@ -74,7 +75,7 @@ impl Default for ClientServerConfig {
             client_memory: 10 * 1024 * 1024,
             server_global_memory: 10 * 1024 * 1024,
             server_per_client_memory: 10 * 1024 * 1024,
-            network_simulator: true,
+            network_simulator: false,
             max_simulator_packets: 4 * 1024,
             fragment_packets_above: 1024,
             packet_fragment_size: 1024,
