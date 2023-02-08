@@ -6,6 +6,8 @@ use rust_game_networking::{
 };
 
 fn main() {
+    env_logger::init();
+
     initialize().unwrap();
     log_level(LogLevel::Debug);
 

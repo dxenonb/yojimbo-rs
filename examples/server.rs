@@ -5,7 +5,11 @@ use rust_game_networking::{
     PRIVATE_KEY_BYTES,
 };
 
+struct Message(u32);
+
 fn main() {
+    env_logger::init();
+
     initialize().unwrap();
     log_level(LogLevel::Debug);
 
@@ -13,8 +17,6 @@ fn main() {
 
     shutdown();
 }
-
-struct Message(u32);
 
 fn server_main() {
     let mut time = 100.0;
