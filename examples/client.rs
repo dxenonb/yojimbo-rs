@@ -58,7 +58,7 @@ fn client_main() {
 
         time += delta_time;
 
-        client.advance_time(delta_time);
+        client.advance_time(time);
 
         if client.connection_failed() {
             println!("stopping client");

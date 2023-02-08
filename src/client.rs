@@ -5,8 +5,6 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
-struct Message(u32);
-
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
 pub enum ClientState {
@@ -193,14 +191,23 @@ impl<M> Client<M> {
     }
 
     pub fn is_connected(&self) -> bool {
-        matches!(self.client_state, ClientState::Connected)
+        // explicit match for exhaustiveness checking
+        match self.client_state {
+            ClientState::Connected => true,
+            ClientState::Connecting => false,
+            ClientState::Disconnected => false,
+            ClientState::Error => false,
+        }
     }
 
     pub fn is_disconnected(&self) -> bool {
-        matches!(
-            self.client_state,
-            ClientState::Error | ClientState::Disconnected
-        )
+        // explicit match for exhaustiveness checking
+        match self.client_state {
+            ClientState::Connected => false,
+            ClientState::Connecting => false,
+            ClientState::Disconnected => true,
+            ClientState::Error => true,
+        }
     }
 
     pub fn connection_failed(&self) -> bool {
