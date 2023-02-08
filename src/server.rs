@@ -4,9 +4,7 @@ use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default};
 
-type M = ();
-
-pub struct Server {
+pub struct Server<M> {
     // ///< Allocator passed in to constructor.
     // ///< The block of memory backing the global allocator. Allocated with m_allocator.
     // ///< The block of memory backing the per-client allocators. Allocated with m_allocator.
@@ -38,13 +36,13 @@ pub struct Server {
     private_key: [u8; NETCODE_KEY_BYTES],
 }
 
-impl Server {
+impl<M> Server<M> {
     pub fn new(
         private_key: &[u8; NETCODE_KEY_BYTES],
         address: String,
         config: ClientServerConfig,
         time: f64,
-    ) -> Server {
+    ) -> Server<M> {
         assert_eq!(private_key.len(), NETCODE_KEY_BYTES);
 
         Server {
@@ -106,8 +104,8 @@ impl Server {
                 reliable_config.fragment_reassembly_buffer_size =
                     self.config.packet_reassembly_buffer_size as _;
                 reliable_config.rtt_smoothing_factor = self.config.rtt_smoothing_factor;
-                reliable_config.transmit_packet_function = Some(transmit_packet);
-                reliable_config.process_packet_function = Some(process_packet);
+                reliable_config.transmit_packet_function = Some(transmit_packet::<M>);
+                reliable_config.process_packet_function = Some(process_packet::<M>);
 
                 // do not override `reliable`'s default allocator
                 // reliable_config.allocator_context = std::ptr::null_mut();
@@ -135,7 +133,7 @@ impl Server {
             // netcode_config.free_function = None;
 
             netcode_config.callback_context = self as *mut _ as *mut c_void;
-            netcode_config.connect_disconnect_callback = Some(connect_disconnect_callback);
+            netcode_config.connect_disconnect_callback = Some(connect_disconnect_callback::<M>);
             netcode_config.send_loopback_packet_callback = None; // TODO
 
             let server_address = CString::new(self.address.clone()).unwrap();
@@ -300,7 +298,7 @@ impl Server {
     }
 }
 
-impl Server {
+impl<M> Server<M> {
     fn transmit_packet(
         &mut self,
         client_index: i32,
@@ -325,7 +323,7 @@ impl Server {
     ) -> i32 {
         let connection = self.client_connection_mut(client_index);
         let result =
-            unsafe { connection.process_packet(packet_sequence, packet_data, packet_bytes) };
+            unsafe { connection.process_packet(packet_sequence, packet_data, packet_bytes as _) };
         if result {
             1
         } else {
@@ -357,28 +355,28 @@ impl Server {
     }
 }
 
-unsafe extern "C" fn transmit_packet(
+unsafe extern "C" fn transmit_packet<M>(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
     packet_data: *mut u8,
     packet_bytes: i32,
 ) {
-    let server = context as *mut Server;
+    let server = context as *mut Server<M>;
     server
         .as_mut()
         .unwrap()
         .transmit_packet(index, packet_sequence, packet_data, packet_bytes);
 }
 
-unsafe extern "C" fn process_packet(
+unsafe extern "C" fn process_packet<M>(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
     packet_data: *mut u8,
     packet_bytes: i32,
 ) -> i32 {
-    let server = context as *mut Server;
+    let server = context as *mut Server<M>;
     server
         .as_mut()
         .unwrap()
@@ -389,12 +387,12 @@ fn is_client_connected(server: *mut netcode_server_t, client_index: usize) -> bo
     unsafe { netcode_server_client_connected(server, client_index as _) != 0 }
 }
 
-unsafe extern "C" fn connect_disconnect_callback(
+unsafe extern "C" fn connect_disconnect_callback<M>(
     context: *mut c_void,
     client_index: i32,
     connected: i32,
 ) {
-    let server = context as *mut Server;
+    let server = context as *mut Server<M>;
     server
         .as_mut()
         .unwrap()

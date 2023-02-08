@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, mem::size_of};
 
-use byteorder::{LittleEndian, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::config::{ChannelConfig, ChannelType};
 
@@ -77,8 +77,17 @@ impl<M> Channel<M> {
         )
     }
 
-    fn process_packet_data(&mut self) {
-        // TODO
+    pub(crate) fn process_packet_data(
+        &mut self,
+        packet_data: ChannelPacketData<M>,
+        packet_sequence: u16,
+    ) {
+        if self.error_level() != ChannelErrorLevel::None {
+            return;
+        }
+        // TODO: detect failed_to_serialize (maybe do this in the connection?)
+        self.processor
+            .process_packet_data(packet_data, packet_sequence);
     }
 
     pub(crate) fn process_ack(&mut self, _packet_sequence: u16) {
@@ -217,8 +226,13 @@ impl<M> Unreliable<M> {
         (packet_data, used_bits)
     }
 
-    fn process_packet_data(&mut self) {
-        // TODO
+    fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, _packet_sequence: u16) {
+        for message in packet_data.messages {
+            // TODO: set packet_sequence on Message
+            if self.message_receive_queue.len() == self.message_receive_queue.capacity() {
+                self.message_receive_queue.push_back(message);
+            }
+        }
     }
 }
 
@@ -239,6 +253,21 @@ impl<M> ChannelPacketData<M> {
         self.serialize_unordered(dest);
     }
 
+    pub(crate) fn deserialize(src: &mut &[u8]) -> ChannelPacketData<M> {
+        let channel_index = src.read_u16::<LittleEndian>().unwrap() as _;
+
+        // TODO: block messages
+
+        // TODO: deserialize reliable messages
+
+        let messages = ChannelPacketData::deserialize_unordered(src);
+
+        ChannelPacketData {
+            channel_index,
+            messages,
+        }
+    }
+
     fn serialize_unordered(&self, dest: &mut &mut [u8]) {
         let has_messages = self.messages.len() > 0;
         dest.write_u8(if has_messages { 1 } else { 0 }).unwrap();
@@ -252,8 +281,30 @@ impl<M> ChannelPacketData<M> {
         dest.write_u8(self.messages.len().try_into().unwrap())
             .unwrap();
 
-        // TODO: serialize the message
-        dest.write_u64::<LittleEndian>(12345678).unwrap();
+        for _ in &self.messages {
+            // TODO: serialize the message
+            dest.write_u64::<LittleEndian>(12345678).unwrap();
+        }
+    }
+
+    fn deserialize_unordered(src: &mut &[u8]) -> Vec<M> {
+        let has_messages = src.read_u8().unwrap() == 1;
+
+        if !has_messages {
+            return Vec::new();
+        }
+
+        // TODO: pass config check maxMessagesPerPacket < MAX
+        let message_count = src.read_u8().unwrap() as usize;
+        let messages = Vec::with_capacity(message_count);
+
+        for _ in 0..message_count {
+            // TODO: deserialize the message
+            let value = src.read_u64::<LittleEndian>().unwrap();
+            assert_eq!(value, 12345678);
+        }
+
+        messages
     }
 
     fn empty() -> ChannelPacketData<M> {

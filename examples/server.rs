@@ -14,6 +14,8 @@ fn main() {
     shutdown();
 }
 
+struct Message {}
+
 fn server_main() {
     let mut time = 100.0;
 
@@ -24,7 +26,7 @@ fn server_main() {
     let server_address = "127.0.0.1:40000".to_string();
     println!("starting server on port {} (insecure)", &server_address);
 
-    let mut server = Server::new(&private_key, server_address, config, time);
+    let mut server: Server<Message> = Server::new(&private_key, server_address, config, time);
     server.start(max_clients);
 
     let (stop_tx, stop_rx) = channel();

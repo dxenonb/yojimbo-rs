@@ -1,4 +1,6 @@
-use byteorder::{LittleEndian, WriteBytesExt};
+use std::slice;
+
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{
     channel::{
@@ -70,16 +72,45 @@ impl<M> Connection<M> {
 
     pub(crate) unsafe fn process_packet(
         &mut self,
-        _packet_sequence: u16,
-        _packet_data: *const u8,
-        _packet_bytes: i32,
+        packet_sequence: u16,
+        packet_data: *const u8,
+        packet_bytes: usize,
     ) -> bool {
         if self.error_level() != ConnectionErrorLevel::None {
             log::debug!("failed to read packet because connection is in error state");
             return false;
         }
 
-        // TODO
+        let mut packet = ConnectionPacket::new(Vec::new());
+
+        {
+            /* yojimbo Connection::ReadPacket */
+            assert!(!packet_data.is_null());
+            assert!(packet_bytes > 0);
+
+            packet.deserialize(packet_data, packet_bytes);
+            // TODO: serialize check
+        }
+
+        for entry in packet.channel_data {
+            let channel_index = entry.channel_index;
+            if channel_index > self.channels.len() {
+                log::error!(
+                    "server received packet for channel that does not exist: {}",
+                    entry.channel_index
+                );
+                continue;
+            }
+            let channel = &mut self.channels[entry.channel_index];
+            channel.process_packet_data(entry, packet_sequence);
+            if channel.error_level() != ChannelErrorLevel::None {
+                log::debug!(
+                    "failed to read packet because channel {} is in error state",
+                    channel_index
+                );
+                return false;
+            }
+        }
 
         true
     }
@@ -92,7 +123,7 @@ impl<M> Connection<M> {
             return;
         }
 
-        // TODO: cache
+        // REFACTOR: consider caching
         let mut channel_data = Vec::new();
 
         let max_packet_size = packet_data.len();
@@ -146,6 +177,29 @@ impl<M> ConnectionPacket<M> {
 
         for channel_data in &self.channel_data {
             channel_data.serialize(dest);
+        }
+    }
+
+    unsafe fn deserialize(&mut self, packet_data: *const u8, packet_bytes: usize) {
+        /*
+           SAFETY: packet_data comes from a netcode_connection_payload_packet_t
+
+           netcode_connection_payload_packet_t is ultimately allocated in three places:
+             - read from decrypted buffer
+                - in which case all the bytes should be initialized
+             - loopback (both server and client send packets)
+                - packet_data is initialized if the sent packet is initialized
+        */
+        assert!(!packet_data.is_null());
+        debug_assert!(packet_bytes < isize::MAX as usize);
+        let mut src = slice::from_raw_parts(packet_data, packet_bytes);
+
+        let reader = &mut src;
+        let channels = reader.read_u16::<LittleEndian>().unwrap() as usize;
+
+        for _ in 0..channels {
+            let data = ChannelPacketData::deserialize(reader);
+            self.channel_data.push(data);
         }
     }
 }
