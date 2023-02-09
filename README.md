@@ -14,10 +14,12 @@ MVP tasks:
  - [x] Impl unreliable channels
  - [ ] Impl reliable channels
  - [ ] Impl message serialization
- - [ ] Impl client Matcher service
  - [ ] Add CI/CD
  - [ ] Add Automated Tests
  - [ ] Update dependencies (netcode, reliable, and libsodium)
+ - [ ] Review unsafe code (some unsafe blocks are a bit cavalier, and unsafety may be exposed in safe APIs)
+ - [ ] Review error handling and use Option/Result
+ - [ ] Impl client Matcher service
 
 Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C++ API as close as possible, with some ommissions:
 
@@ -29,11 +31,11 @@ Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C+
 
 Additional tasks in the backlog:
 
- - consider a more RAII oriented API
+ - consider a more RAII oriented API, refactor for Rust
  - reconsider how channels are handled
  - review some other C-like things that feel odd in Rust
- - review error handling
  - fix https://github.com/networkprotocol/yojimbo/issues/170
+ - implement an example Matchmaking backend
 
 If you are looking for more information on how to use `netcode` and `reliable`, reading this library's source should be a good place to start (the `yojimbo` source is also great). I recommend starting by reading the client and server examples, and working backwards from there. Netcode's client and server examples are also very straightforward.
 
