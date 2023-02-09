@@ -275,8 +275,7 @@ impl<M> Server<M> {
                         "client {} connection is in error state. disconnecting client",
                         i
                     );
-                    // TODO: eek disconnecting
-                    // TODO: on disconnect, clear send queue https://github.com/networkprotocol/yojimbo/issues/129
+                    unsafe { disconnect_client(self.server, i, *endpoint, conn) };
                     continue;
                 }
                 unsafe {
@@ -299,6 +298,14 @@ impl<M> Server<M> {
 
     pub fn is_client_connected(&self, client_index: usize) -> bool {
         is_client_connected(self.server, client_index)
+    }
+
+    pub fn disconnect_client(&mut self, client_index: usize) {
+        let endpoint = self.client_endpoint[client_index];
+        let connection = &mut self.client_connection[client_index];
+        unsafe {
+            disconnect_client(self.server, client_index, endpoint, connection);
+        }
     }
 
     pub fn running(&self) -> bool {
@@ -361,6 +368,18 @@ impl<M> Server<M> {
 
         &mut self.client_connection[client_index]
     }
+}
+
+unsafe fn disconnect_client<M>(
+    server: *mut netcode_server_t,
+    client_index: usize,
+    endpoint: *mut reliable_endpoint_t,
+    _connection: &mut Connection<M>,
+) {
+    // TODO: on disconnect, clear send queue https://github.com/networkprotocol/yojimbo/issues/129
+    assert!(!server.is_null());
+    assert!(!endpoint.is_null());
+    netcode_server_disconnect_client(server, client_index as _);
 }
 
 unsafe extern "C" fn transmit_packet<M>(
