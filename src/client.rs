@@ -246,7 +246,6 @@ impl<M> Client<M> {
         self.destroy_client();
         let mut netcode_config =
             gf_init_default!(netcode_client_config_t, netcode_default_client_config);
-        // TODO: allocator support
         netcode_config.callback_context = self as *mut _ as *mut c_void;
         netcode_config.state_change_callback = Some(state_change_callback::<M>);
         netcode_config.send_loopback_packet_callback = None; // TODO

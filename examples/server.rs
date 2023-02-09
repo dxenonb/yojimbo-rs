@@ -1,8 +1,8 @@
 use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use rust_game_networking::{
-    config::ClientServerConfig, initialize, log_level, server::Server, shutdown, LogLevel,
-    PRIVATE_KEY_BYTES,
+    config::ClientServerConfig, initialize, server::Server, set_bindings_log_level, shutdown,
+    BindingsLogLevel, PRIVATE_KEY_BYTES,
 };
 
 struct Message(u32);
@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    log_level(LogLevel::Error);
+    set_bindings_log_level(BindingsLogLevel::Error);
 
     server_main();
 

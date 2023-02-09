@@ -2,7 +2,7 @@ use std::{mem::size_of, sync::mpsc::channel, thread::sleep, time::Duration};
 
 use rust_game_networking::{
     bindings::netcode_random_bytes, client::Client, config::ClientServerConfig, initialize,
-    log_level, shutdown, LogLevel, PRIVATE_KEY_BYTES,
+    set_bindings_log_level, shutdown, BindingsLogLevel, PRIVATE_KEY_BYTES,
 };
 
 struct Message(u32);
@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    log_level(LogLevel::Error);
+    set_bindings_log_level(BindingsLogLevel::Error);
 
     client_main();
 
