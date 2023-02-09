@@ -264,9 +264,12 @@ impl<M> Client<M> {
     }
 
     fn state_change_callback(&mut self, previous: ClientState, current: ClientState) {
-        // TODO: do we need this (not rusty, meant for inheritance)? callers can poll
-        // TODO: remove debug message
-        println!("client state changed from: {:?} to {:?}", previous, current);
+        // we could consider removing this callback entirely since it's just wasted performance
+        log::debug!(
+            "client state changed from: {:?} to {:?}",
+            &previous,
+            &current
+        );
     }
 
     unsafe fn transmit_packet(
