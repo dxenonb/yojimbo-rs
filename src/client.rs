@@ -3,6 +3,7 @@ use std::usize;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
+use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 #[derive(Debug, Clone, Copy)]
@@ -202,6 +203,11 @@ impl<M> Client<M> {
         }
     }
 
+    /// Check if this client is currently disconnected and not connecting.
+    ///
+    /// This means the client has errored-out, lost connection, or
+    /// disconnected and is not in the process of handshaking or sending
+    /// and receiving messages.
     pub fn is_disconnected(&self) -> bool {
         // explicit match for exhaustiveness checking
         match self.client_state {
@@ -212,6 +218,55 @@ impl<M> Client<M> {
         }
     }
 
+    pub fn can_send_message(&self, channel: usize) -> bool {
+        self.connection
+            .as_ref()
+            .map(|c| c.can_send_message(channel))
+            .unwrap_or(false)
+    }
+
+    pub fn has_messages_to_send(&self, channel: usize) -> bool {
+        self.connection
+            .as_ref()
+            .map(|c| c.has_messages_to_send(channel))
+            .unwrap_or(false)
+    }
+
+    pub fn snapshot_network_info(&self) -> Option<NetworkInfo> {
+        if !self.is_connected() {
+            return None;
+        }
+
+        let endpoint = self.endpoint;
+        assert!(!endpoint.is_null());
+
+        unsafe {
+            let mut sent_bandwidth = 0.0;
+            let mut received_bandwidth = 0.0;
+            let mut acked_bandwidth = 0.0;
+            reliable_endpoint_bandwidth(
+                endpoint,
+                &mut sent_bandwidth,
+                &mut received_bandwidth,
+                &mut acked_bandwidth,
+            );
+
+            Some(NetworkInfo {
+                rtt: reliable_endpoint_rtt(endpoint),
+                packet_loss: reliable_endpoint_packet_loss(endpoint),
+                sent_bandwidth,
+                received_bandwidth,
+                acked_bandwidth,
+                // TODO: counters
+                num_packets_sent: 0,
+                num_packets_received: 0,
+                num_packets_acked: 0,
+            })
+        }
+    }
+
+    // TODO: client_index()
+
     pub fn connection_failed(&self) -> bool {
         matches!(self.client_state, ClientState::Error)
     }
@@ -219,6 +274,8 @@ impl<M> Client<M> {
     pub fn bound_port(&self) -> Option<u16> {
         self.bound_port
     }
+
+    // TODO: loopback
 
     /// Called regardless of connection security
     fn connect_internal(&mut self) {

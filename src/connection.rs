@@ -153,6 +153,14 @@ impl<M> Connection<M> {
             channel.reset();
         }
     }
+
+    pub(crate) fn can_send_message(&self, channel: usize) -> bool {
+        self.channels[channel].can_send_message()
+    }
+
+    pub(crate) fn has_messages_to_send(&self, channel: usize) -> bool {
+        self.channels[channel].has_messages_to_send()
+    }
 }
 
 struct ConnectionPacket<M> {

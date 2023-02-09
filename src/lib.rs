@@ -5,6 +5,7 @@ pub mod channel;
 pub mod client;
 pub mod config;
 pub mod connection;
+pub mod network_info;
 pub mod server;
 
 pub const PRIVATE_KEY_BYTES: usize = config::NETCODE_KEY_BYTES;

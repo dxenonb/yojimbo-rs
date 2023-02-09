@@ -98,6 +98,14 @@ impl<M> Channel<M> {
         self.error_level
     }
 
+    pub(crate) fn can_send_message(&self) -> bool {
+        self.processor.can_send_message()
+    }
+
+    pub(crate) fn has_messages_to_send(&self) -> bool {
+        self.processor.has_messages_to_send()
+    }
+
     // TODO: get_counter/counter, reset_counters
 
     /// All errors go through this function to make debug logging easier.
@@ -106,14 +114,6 @@ impl<M> Channel<M> {
             log::error!("channel went into error state: {:?}", level);
         }
         self.error_level = level;
-    }
-
-    fn can_send_message(&self) -> bool {
-        self.processor.can_send_message()
-    }
-
-    fn has_messages_to_send(&self) -> bool {
-        self.processor.has_messages_to_send()
     }
 
     // /// Queue a message to be sent across this channel.

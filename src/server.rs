@@ -3,6 +3,7 @@ use std::mem::size_of;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
+use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default};
 
 pub struct Server<M> {
@@ -284,6 +285,13 @@ impl<M> Server<M> {
         }
     }
 
+    pub fn client_id(&self, client_index: usize) -> Option<u64> {
+        if !self.is_client_connected(client_index) {
+            return None;
+        }
+        Some(unsafe { netcode_server_client_id(self.server, client_index as _) })
+    }
+
     pub fn is_client_connected(&self, client_index: usize) -> bool {
         is_client_connected(self.server, client_index)
     }
@@ -303,6 +311,54 @@ impl<M> Server<M> {
     pub fn bound_port(&self) -> Option<u16> {
         self.bound_port
     }
+
+    pub fn can_send_message(&self, client_index: usize, channel_index: usize) -> bool {
+        self.client_connection[client_index].can_send_message(channel_index)
+    }
+
+    pub fn has_messages_to_send(&self, client_index: usize, channel_index: usize) -> bool {
+        self.client_connection[client_index].has_messages_to_send(channel_index)
+    }
+
+    pub fn snapshot_network_info(&self, client_index: usize) -> Option<NetworkInfo> {
+        assert!(self.running);
+        assert!(client_index < self.client_connection.len());
+
+        if !self.is_client_connected(client_index) {
+            return None;
+        }
+
+        let endpoint = self.client_endpoint[client_index];
+        assert!(!endpoint.is_null());
+
+        unsafe {
+            let mut sent_bandwidth = 0.0;
+            let mut received_bandwidth = 0.0;
+            let mut acked_bandwidth = 0.0;
+            reliable_endpoint_bandwidth(
+                endpoint,
+                &mut sent_bandwidth,
+                &mut received_bandwidth,
+                &mut acked_bandwidth,
+            );
+
+            Some(NetworkInfo {
+                rtt: reliable_endpoint_rtt(endpoint),
+                packet_loss: reliable_endpoint_packet_loss(endpoint),
+                sent_bandwidth,
+                received_bandwidth,
+                acked_bandwidth,
+                // TODO: counters
+                num_packets_sent: 0,
+                num_packets_received: 0,
+                num_packets_acked: 0,
+            })
+        }
+    }
+
+    // TODO: get client address, connected_client_count
+
+    // TODO: loopback
 }
 
 impl<M> Server<M> {
