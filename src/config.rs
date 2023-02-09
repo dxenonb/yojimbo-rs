@@ -130,9 +130,10 @@ impl ClientServerConfig {
         reliable_config.transmit_packet_function = Some(transmit_packet);
         reliable_config.process_packet_function = Some(process_packet);
 
-        reliable_config.allocator_context = std::ptr::null_mut();
-        reliable_config.allocate_function = None;
-        reliable_config.free_function = None;
+        // don't override `reliable`'s default allocator
+        // reliable_config.allocator_context = std::ptr::null_mut();
+        // reliable_config.allocate_function = None;
+        // reliable_config.free_function = None;
 
         reliable_config
     }

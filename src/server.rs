@@ -240,6 +240,14 @@ impl<M> Server<M> {
         }
     }
 
+    pub fn send_message(&mut self, client_index: usize, channel_index: usize, message: M) {
+        self.client_connection[client_index].send_message(channel_index, message);
+    }
+
+    pub fn receive_message(&mut self, client_index: usize, channel_index: usize) -> Option<M> {
+        self.client_connection[client_index].receive_message(channel_index)
+    }
+
     pub fn advance_time(&mut self, new_time: f64) {
         if !self.server.is_null() {
             unsafe { netcode_server_update(self.server, self.time) };

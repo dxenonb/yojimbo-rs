@@ -16,17 +16,12 @@ pub enum ConnectionErrorLevel {
     None,
     /// A channel is in an error state.
     Channel,
-    // /// The allocator is an error state.
-    // Allocator,
-    // /// The message factory is in an error state.
-    // MessageFactory,
     /// Failed to read packet. Received an invalid packet?     
     ReadPacketFailed,
 }
 
 /// Sends and receives messages across a set of user defined channels.
 pub(crate) struct Connection<M> {
-    // message_factory: MessageFactory,
     // connection_config: ConnectionConfig,
     channels: Vec<Channel<M>>,
     error_level: ConnectionErrorLevel,
@@ -160,6 +155,14 @@ impl<M> Connection<M> {
 
     pub(crate) fn has_messages_to_send(&self, channel: usize) -> bool {
         self.channels[channel].has_messages_to_send()
+    }
+
+    pub(crate) fn send_message(&mut self, channel_index: usize, message: M) {
+        self.channels[channel_index].send_message(message);
+    }
+
+    pub(crate) fn receive_message(&mut self, channel_index: usize) -> Option<M> {
+        self.channels[channel_index].receive_message()
     }
 }
 

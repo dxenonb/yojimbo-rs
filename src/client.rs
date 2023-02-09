@@ -193,6 +193,24 @@ impl<M> Client<M> {
         }
     }
 
+    pub fn send_message(&mut self, channel_index: usize, message: M) {
+        self.connection
+            .as_mut()
+            .unwrap()
+            .send_message(channel_index, message);
+    }
+
+    pub fn receive_message(&mut self, channel_index: usize) -> Option<M> {
+        self.connection
+            .as_mut()
+            .unwrap()
+            .receive_message(channel_index)
+    }
+
+    /// Check if this client is currently successfully connected.
+    ///
+    /// This means the client has finished the handshake and is
+    /// able to send and receive messages.
     pub fn is_connected(&self) -> bool {
         // explicit match for exhaustiveness checking
         match self.client_state {

@@ -32,7 +32,6 @@ pub struct Channel<M> {
     channel_index: usize,
     error_level: ChannelErrorLevel,
     processor: Unreliable<M>,
-    // message_factory: MessageFactory,
     // TODO: uint64_t m_counters[CHANNEL_COUNTER_NUM_COUNTERS],
 }
 
@@ -106,6 +105,31 @@ impl<M> Channel<M> {
         self.processor.has_messages_to_send()
     }
 
+    pub(crate) fn send_message(&mut self, message: M) {
+        if self.error_level() != ChannelErrorLevel::None {
+            return;
+        }
+
+        if !self.can_send_message() {
+            self.set_error_level(ChannelErrorLevel::SendQueueFull);
+            return;
+        }
+
+        self.processor.send_message(message);
+
+        // TODO: counters
+    }
+
+    pub(crate) fn receive_message(&mut self) -> Option<M> {
+        if self.error_level() != ChannelErrorLevel::None {
+            return None;
+        }
+
+        self.processor.receive_message()
+
+        // TODO: counters
+    }
+
     // TODO: get_counter/counter, reset_counters
 
     /// All errors go through this function to make debug logging easier.
@@ -161,7 +185,13 @@ impl<M> Unreliable<M> {
         self.message_send_queue.is_empty()
     }
 
-    // TODO: send and receive messages
+    fn send_message(&mut self, message: M) {
+        self.message_send_queue.push_back(message)
+    }
+
+    fn receive_message(&mut self) -> Option<M> {
+        self.message_receive_queue.pop_front()
+    }
 
     fn packet_data(
         &mut self,
