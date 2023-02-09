@@ -22,13 +22,13 @@ pub enum ConnectionErrorLevel {
 
 /// Sends and receives messages across a set of user defined channels.
 pub(crate) struct Connection<M> {
-    // connection_config: ConnectionConfig,
+    config: ConnectionConfig,
     channels: Vec<Channel<M>>,
     error_level: ConnectionErrorLevel,
 }
 
 impl<M> Connection<M> {
-    pub(crate) fn new(config: &ConnectionConfig, time: f64) -> Connection<M> {
+    pub(crate) fn new(config: ConnectionConfig, time: f64) -> Connection<M> {
         assert!(config.num_channels >= 1);
 
         let mut channels = Vec::with_capacity(config.num_channels);
@@ -37,6 +37,7 @@ impl<M> Connection<M> {
         }
 
         Connection {
+            config,
             channels,
             error_level: ConnectionErrorLevel::None,
         }
@@ -83,7 +84,7 @@ impl<M> Connection<M> {
             assert!(!packet_data.is_null());
             assert!(packet_bytes > 0);
 
-            packet.deserialize(packet_data, packet_bytes);
+            packet.deserialize(&self.config, packet_data, packet_bytes);
             // TODO: serialize check
         }
 
@@ -137,7 +138,7 @@ impl<M> Connection<M> {
 
         if !channel_data.is_empty() {
             let packet = ConnectionPacket::new(channel_data);
-            packet.serialize(packet_data);
+            packet.serialize(&self.config, packet_data);
             // TODO: serialize check
         }
     }
@@ -175,7 +176,7 @@ impl<M> ConnectionPacket<M> {
         ConnectionPacket { channel_data }
     }
 
-    fn serialize(&self, dest: &mut &mut [u8]) {
+    fn serialize(&self, config: &ConnectionConfig, dest: &mut &mut [u8]) {
         assert!(self.channel_data.len() < u16::MAX as usize);
 
         let max_packet_size = dest.len();
@@ -188,11 +189,16 @@ impl<M> ConnectionPacket<M> {
         }
 
         for channel_data in &self.channel_data {
-            channel_data.serialize(dest);
+            channel_data.serialize(config, dest);
         }
     }
 
-    unsafe fn deserialize(&mut self, packet_data: *const u8, packet_bytes: usize) {
+    unsafe fn deserialize(
+        &mut self,
+        config: &ConnectionConfig,
+        packet_data: *const u8,
+        packet_bytes: usize,
+    ) {
         /*
            SAFETY: packet_data comes from a netcode_connection_payload_packet_t
 
@@ -210,7 +216,7 @@ impl<M> ConnectionPacket<M> {
         let channels = reader.read_u16::<LittleEndian>().unwrap() as usize;
 
         for _ in 0..channels {
-            let data = ChannelPacketData::deserialize(reader);
+            let data = ChannelPacketData::deserialize(config, reader);
             self.channel_data.push(data);
         }
     }

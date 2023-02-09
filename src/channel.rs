@@ -2,7 +2,7 @@ use std::{collections::VecDeque, mem::size_of};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::config::{ChannelConfig, ChannelType};
+use crate::config::{ChannelConfig, ChannelType, ConnectionConfig};
 
 pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
 // pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
@@ -276,7 +276,7 @@ pub(crate) struct ChannelPacketData<M> {
 }
 
 impl<M> ChannelPacketData<M> {
-    pub(crate) fn serialize(&self, dest: &mut &mut [u8]) {
+    pub(crate) fn serialize(&self, config: &ConnectionConfig, dest: &mut &mut [u8]) {
         dest.write_u16::<LittleEndian>(self.channel_index.try_into().unwrap())
             .unwrap();
 
@@ -284,17 +284,19 @@ impl<M> ChannelPacketData<M> {
 
         // TODO: serialize reliable messages
 
-        self.serialize_unordered(dest);
+        let config = &config.channels[self.channel_index];
+        self.serialize_unordered(config, dest);
     }
 
-    pub(crate) fn deserialize(src: &mut &[u8]) -> ChannelPacketData<M> {
+    pub(crate) fn deserialize(config: &ConnectionConfig, src: &mut &[u8]) -> ChannelPacketData<M> {
         let channel_index = src.read_u16::<LittleEndian>().unwrap() as _;
 
         // TODO: block messages
 
         // TODO: deserialize reliable messages
 
-        let messages = ChannelPacketData::deserialize_unordered(src);
+        let config = &config.channels[channel_index];
+        let messages = ChannelPacketData::deserialize_unordered(config, src);
 
         ChannelPacketData {
             channel_index,
@@ -302,7 +304,7 @@ impl<M> ChannelPacketData<M> {
         }
     }
 
-    fn serialize_unordered(&self, dest: &mut &mut [u8]) {
+    fn serialize_unordered(&self, config: &ChannelConfig, dest: &mut &mut [u8]) {
         let has_messages = self.messages.len() > 0;
         dest.write_u8(if has_messages { 1 } else { 0 }).unwrap();
 
@@ -310,9 +312,8 @@ impl<M> ChannelPacketData<M> {
             return;
         }
 
-        // TODO: pass config - check maxMessagesPerPacket < MAX
-        assert!(self.messages.len() < u8::MAX as usize);
-        dest.write_u8(self.messages.len().try_into().unwrap())
+        debug_assert!(config.max_messages_per_packet < u8::MAX as usize);
+        dest.write_u8((self.messages.len() - 1).try_into().unwrap())
             .unwrap();
 
         for _ in &self.messages {
@@ -321,15 +322,15 @@ impl<M> ChannelPacketData<M> {
         }
     }
 
-    fn deserialize_unordered(src: &mut &[u8]) -> Vec<M> {
+    fn deserialize_unordered(config: &ChannelConfig, src: &mut &[u8]) -> Vec<M> {
         let has_messages = src.read_u8().unwrap() == 1;
 
         if !has_messages {
             return Vec::new();
         }
 
-        // TODO: pass config check maxMessagesPerPacket < MAX
-        let message_count = src.read_u8().unwrap() as usize;
+        debug_assert!(config.max_messages_per_packet < u8::MAX as usize);
+        let message_count = 1 + src.read_u8().unwrap() as usize;
         let messages = Vec::with_capacity(message_count);
 
         for _ in 0..message_count {

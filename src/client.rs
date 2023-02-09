@@ -297,7 +297,7 @@ impl<M> Client<M> {
 
     /// Called regardless of connection security
     fn connect_internal(&mut self) {
-        let connection = Connection::new(&self.config.connection, self.time);
+        let connection = Connection::new(self.config.connection.clone(), self.time);
         self.connection = Some(connection);
         if let Some(_) = self.network_simulator {
             unimplemented!();

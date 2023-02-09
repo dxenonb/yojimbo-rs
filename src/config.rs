@@ -13,6 +13,7 @@ const CONNECT_TOKEN_BYTES: usize = 2048;
 const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
 const YOJIMBO_DEFAULT_TIMEOUT: i32 = 5;
 
+#[derive(Debug, Copy, Clone)]
 pub struct ConnectionConfig {
     pub num_channels: usize, // TODO: require use of channels.len
     pub max_packet_size: usize,
@@ -30,6 +31,7 @@ impl Default for ConnectionConfig {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct ClientServerConfig {
     pub connection: ConnectionConfig,
     /// Clients can only connect to servers with the same protocol id. Use this for versioning.
@@ -139,13 +141,18 @@ impl ClientServerConfig {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct ChannelConfig {
     pub kind: ChannelType,
     pub disable_blocks: bool,
     pub sent_packet_buffer_size: usize,
     pub message_send_queue_size: usize,
     pub message_receive_queue_size: usize,
+    /// Maximum number of messages per packet.
+    ///
+    /// Note that this currently has a limitation of 256 due to the way that
+    /// messages are serialized ([message count - 1] is serialized as a byte). If you
+    /// feel like implementing dynamic integer serialization, go for it! PRs welcome!
     pub max_messages_per_packet: usize,
     /// Maximum amount of message data to write to the packet for this channel (bytes). Specifying None means the channel can use up to the rest of the bytes remaining in the packet.
     pub packet_budget: Option<usize>,
