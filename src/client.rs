@@ -43,7 +43,7 @@ pub struct Client<M> {
 
     client: *mut netcode_client_t,
     address: String,
-    // bound_address: TODO
+    bound_port: Option<u16>,
     client_id: u64,
 }
 
@@ -62,6 +62,7 @@ impl<M> Client<M> {
 
             client: std::ptr::null_mut(),
             address,
+            bound_port: None,
             client_id: 0,
         }
     }
@@ -215,6 +216,10 @@ impl<M> Client<M> {
         matches!(self.client_state, ClientState::Error)
     }
 
+    pub fn bound_port(&self) -> Option<u16> {
+        self.bound_port
+    }
+
     /// Called regardless of connection security
     fn connect_internal(&mut self) {
         let connection = Connection::new(&self.config.connection, self.time);
@@ -251,7 +256,7 @@ impl<M> Client<M> {
         };
 
         if !self.client.is_null() {
-            // TODO: get bound address
+            self.bound_port = Some(unsafe { netcode_client_get_port(self.client) });
         }
     }
 

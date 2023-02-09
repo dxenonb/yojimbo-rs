@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    log_level(LogLevel::Info);
+    log_level(LogLevel::Error);
 
     server_main();
 
@@ -26,7 +26,7 @@ fn server_main() {
     let private_key = [0; PRIVATE_KEY_BYTES];
 
     let server_address = "127.0.0.1:40000".to_string();
-    println!("starting server on port {} (insecure)", &server_address);
+    println!("starting server on address {} (insecure)", &server_address);
 
     let mut server: Server<Message> = Server::new(&private_key, server_address, config, time);
     server.start(max_clients);

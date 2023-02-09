@@ -24,6 +24,7 @@ pub struct Server<M> {
     packet_buffer: Vec<u8>,
 
     address: String,
+    bound_port: Option<u16>,
     server: *mut netcode_server_t,
     private_key: [u8; NETCODE_KEY_BYTES],
 }
@@ -55,6 +56,7 @@ impl<M> Server<M> {
 
             server: std::ptr::null_mut(),
             address,
+            bound_port: None,
             private_key: *private_key,
         }
     }
@@ -71,11 +73,6 @@ impl<M> Server<M> {
             if self.config.network_simulator {
                 unimplemented!("initialize network simulator");
             }
-
-            /* PORT:
-                initialize adapter
-                create message factory
-            */
 
             assert!(self.client_connection.is_empty());
             assert!(self.client_endpoint.is_empty());
@@ -152,7 +149,7 @@ impl<M> Server<M> {
 
             unsafe { netcode_server_start(self.server, max_clients.try_into().unwrap()) };
 
-            // TODO: get the bound address
+            self.bound_port = Some(unsafe { netcode_server_get_port(self.server) });
         }
     }
 
@@ -301,6 +298,10 @@ impl<M> Server<M> {
 
     pub fn running(&self) -> bool {
         self.running
+    }
+
+    pub fn bound_port(&self) -> Option<u16> {
+        self.bound_port
     }
 }
 

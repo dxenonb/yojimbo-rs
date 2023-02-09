@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    log_level(LogLevel::Info);
+    log_level(LogLevel::Error);
 
     client_main();
 
@@ -19,6 +19,8 @@ fn main() {
 }
 
 fn client_main() {
+    let server_address = "127.0.0.1:40000".to_string();
+
     println!("connecting client (insecure)");
 
     let mut time = 100.0;
@@ -31,15 +33,18 @@ fn client_main() {
     let config = ClientServerConfig::default();
     let mut client: Client<Message> = Client::new("0.0.0.0".to_string(), config, time);
 
-    let server_address = "127.0.0.1:40000".to_string();
-
     let private_key = [0; PRIVATE_KEY_BYTES];
 
     client.insecure_connect(&private_key, client_id, &[&server_address]);
 
     let (stop_tx, stop_rx) = channel();
     ctrlc::set_handler(move || stop_tx.send(()).unwrap()).expect("Failed to set Ctrl-C handler");
-    println!("client connecting; Ctrl-C to stop");
+
+    let client_port = client.bound_port().unwrap();
+    println!(
+        "client connected to server on {} using port {}; Ctrl-C to stop",
+        &server_address, client_port
+    );
 
     let delta_time = 0.01;
 
