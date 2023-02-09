@@ -6,23 +6,14 @@ use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::{bindings::*, gf_init_default};
 
 pub struct Server<M> {
-    // ///< Allocator passed in to constructor.
-    // ///< The block of memory backing the global allocator. Allocated with m_allocator.
-    // ///< The block of memory backing the per-client allocators. Allocated with m_allocator.
-    // ///< The global allocator. Used for allocations that don't belong to a specific client.
-    // ///< Array of per-client allocator. These are used for allocations related to connected clients.
     /// Base client/server config.
     config: ClientServerConfig,
-    // ///< The adapter specifies the allocator to use, and the message factory class.
-    // // TODO: adapter: Adapter,
     /// Maximum number of clients supported.
     max_clients: usize,
     /// True if server is currently running, eg. after "Start" is called, before "Stop".
     running: bool,
     /// Current server time in seconds.
     time: f64,
-    // ///< Array of per-client message factories. This silos message allocations per-client slot.
-    // client_message_factory: Vec<MessageFactory>,
     /// Array of per-client connection classes. This is how messages are exchanged with clients.
     client_connection: Vec<Connection<M>>,
     /// Array of per-client reliable.io endpoints.
