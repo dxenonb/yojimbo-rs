@@ -338,11 +338,13 @@ impl<M> Server<M> {
     }
 
     fn handle_connect_disconnect(&mut self, client_index: i32, connected: bool) {
-        // TODO: expose and remove println
         if connected {
-            println!("client connected: {}", client_index);
+            log::debug!("client connected: {}", client_index);
         } else {
-            println!("client disconnected: {}", client_index);
+            log::debug!("client disconnected: {}", client_index);
+            unsafe {
+                reliable_endpoint_reset(self.client_endpoint[client_index as usize]);
+            }
             self.client_connection[client_index as usize].reset();
             if let Some(_) = &self.network_simulator {
                 unimplemented!("discard client packets");
