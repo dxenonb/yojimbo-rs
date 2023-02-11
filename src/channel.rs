@@ -16,8 +16,6 @@ pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
 pub(crate) const CONSERVATIVE_CHANNEL_HEADER_BITS: usize = 32;
 pub(crate) const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
 
-// TODO: channel counters
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelErrorLevel {
     /// No error. All is well.
@@ -39,7 +37,7 @@ pub struct Channel<M> {
     channel_index: usize,
     error_level: ChannelErrorLevel,
     processor: Unreliable<M>,
-    // TODO: uint64_t m_counters[CHANNEL_COUNTER_NUM_COUNTERS],
+    counters: ChannelCounters,
 }
 
 impl<M: NetworkMessage> Channel<M> {
@@ -53,13 +51,22 @@ impl<M: NetworkMessage> Channel<M> {
             channel_index,
             error_level: ChannelErrorLevel::None,
             processor,
+            counters: ChannelCounters::default(),
         }
     }
 
     pub(crate) fn reset(&mut self) {
         self.set_error_level(ChannelErrorLevel::None);
         self.processor.reset();
-        // COUNTERS: reset
+        self.reset_counters();
+    }
+
+    pub fn counters(&self) -> &ChannelCounters {
+        &self.counters
+    }
+
+    pub fn reset_counters(&mut self) {
+        self.counters.reset();
     }
 
     /// Advance channel time.
@@ -124,7 +131,7 @@ impl<M: NetworkMessage> Channel<M> {
 
         self.processor.send_message(message);
 
-        // TODO: counters
+        self.counters.sent += 1;
     }
 
     pub(crate) fn receive_message(&mut self) -> Option<M> {
@@ -132,12 +139,12 @@ impl<M: NetworkMessage> Channel<M> {
             return None;
         }
 
-        self.processor.receive_message()
+        let result = self.processor.receive_message()?;
 
-        // TODO: counters
+        self.counters.received += 1;
+
+        Some(result)
     }
-
-    // TODO: get_counter/counter, reset_counters
 
     /// All errors go through this function to make debug logging easier.
     fn set_error_level(&mut self, level: ChannelErrorLevel) {
@@ -152,6 +159,19 @@ impl<M: NetworkMessage> Channel<M> {
 
     // /// Pops the next message off the receive queue if one is available.
     // fn receive_message(&mut self) -> Option<Message>;
+}
+
+#[derive(Debug, Copy, Clone, Default)]
+pub struct ChannelCounters {
+    pub sent: usize,
+    pub received: usize,
+}
+
+impl ChannelCounters {
+    fn reset(&mut self) {
+        self.sent = 0;
+        self.received = 0;
+    }
 }
 
 /// Messages sent across this channel are not guaranteed to arrive, and may be received in a different order than they were sent.

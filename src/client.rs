@@ -1,6 +1,7 @@
 use std::ffi::{c_void, CString};
 use std::usize;
 
+use crate::channel::ChannelCounters;
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::message::NetworkMessage;
@@ -249,6 +250,9 @@ impl<M: NetworkMessage> Client<M> {
             .unwrap_or(false)
     }
 
+    /// Take a snapshot of the current network state.
+    ///
+    /// Returns None if the client is not connected.
     pub fn snapshot_network_info(&self) -> Option<NetworkInfo> {
         if !self.is_connected() {
             return None;
@@ -268,18 +272,30 @@ impl<M: NetworkMessage> Client<M> {
                 &mut acked_bandwidth,
             );
 
+            let counters = reliable_endpoint_counters(endpoint);
+            let num_packets_sent =
+                *counters.offset(RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_SENT as _);
+            let num_packets_received =
+                *counters.offset(RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_RECEIVED as _);
+            let num_packets_acked =
+                *counters.offset(RELIABLE_ENDPOINT_COUNTER_NUM_PACKETS_ACKED as _);
+
             Some(NetworkInfo {
                 rtt: reliable_endpoint_rtt(endpoint),
                 packet_loss: reliable_endpoint_packet_loss(endpoint),
                 sent_bandwidth,
                 received_bandwidth,
                 acked_bandwidth,
-                // TODO: counters
-                num_packets_sent: 0,
-                num_packets_received: 0,
-                num_packets_acked: 0,
+                num_packets_sent,
+                num_packets_received,
+                num_packets_acked,
             })
         }
+    }
+
+    /// Get the counters for channel `channel_index`.
+    pub fn channel_counters(&self, channel_index: usize) -> Option<&ChannelCounters> {
+        Some(self.connection.as_ref()?.channel_counters(channel_index))
     }
 
     // TODO: client_index()

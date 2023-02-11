@@ -4,8 +4,8 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{
     channel::{
-        Channel, ChannelErrorLevel, ChannelPacketData, CONSERVATIVE_CHANNEL_HEADER_BITS,
-        CONSERVATIVE_PACKET_HEADER_BITS,
+        Channel, ChannelCounters, ChannelErrorLevel, ChannelPacketData,
+        CONSERVATIVE_CHANNEL_HEADER_BITS, CONSERVATIVE_PACKET_HEADER_BITS,
     },
     config::ConnectionConfig,
     message::NetworkMessage,
@@ -160,6 +160,10 @@ impl<M: NetworkMessage> Connection<M> {
         for channel in &mut self.channels {
             channel.reset();
         }
+    }
+
+    pub(crate) fn channel_counters(&self, channel: usize) -> &ChannelCounters {
+        self.channels[channel].counters()
     }
 
     pub(crate) fn can_send_message(&self, channel: usize) -> bool {
