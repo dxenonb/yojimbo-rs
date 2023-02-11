@@ -446,7 +446,9 @@ fn client_state_from_netcode_state(state: i32) -> ClientState {
         ClientState::Error
     } else if state == NETCODE_CLIENT_STATE_DISCONNECTED as i32 {
         ClientState::Disconnected
-    } else if state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_REQUEST as i32 {
+    } else if state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_REQUEST as i32
+        || state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_RESPONSE as i32
+    {
         ClientState::Connecting
     } else {
         ClientState::Connected
