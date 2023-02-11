@@ -266,7 +266,7 @@ impl<M: NetworkMessage> Unreliable<M> {
     fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, _packet_sequence: u16) {
         for message in packet_data.messages {
             // TODO: set packet_sequence on Message
-            if self.message_receive_queue.len() == self.message_receive_queue.capacity() {
+            if self.message_receive_queue.len() < self.message_receive_queue.capacity() {
                 self.message_receive_queue.push_back(message);
             }
         }
