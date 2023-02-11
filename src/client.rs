@@ -3,6 +3,7 @@ use std::usize;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
+use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
@@ -48,7 +49,7 @@ pub struct Client<M> {
     client_id: u64,
 }
 
-impl<M> Client<M> {
+impl<M: NetworkMessage> Client<M> {
     pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client<M> {
         let packet_buffer = vec![0u8; config.connection.max_packet_size];
         Client {
@@ -153,13 +154,11 @@ impl<M> Client<M> {
         assert!(!self.client.is_null());
         let packet_sequence = unsafe { reliable_endpoint_next_packet_sequence(self.endpoint) };
         if let Some(connection) = &mut self.connection {
-            let packet_buffer_size = self.packet_buffer.len();
-            let packet_buffer = &mut &mut self.packet_buffer[..];
-            connection.generate_packet(packet_sequence, packet_buffer);
-            let written_slice_size = packet_buffer_size - packet_buffer.len();
-            if written_slice_size > 0 {
+            let written_bytes =
+                connection.generate_packet(packet_sequence, &mut self.packet_buffer[..]);
+            if written_bytes > 0 {
                 unsafe {
-                    let written_slice = &mut self.packet_buffer[..written_slice_size];
+                    let written_slice = &mut self.packet_buffer[..written_bytes];
                     reliable_endpoint_send_packet(
                         self.endpoint,
                         written_slice.as_mut_ptr(),
@@ -304,6 +303,7 @@ impl<M> Client<M> {
         }
 
         let mut reliable_config = self.config.new_reliable_config(
+            self as *const _ as *mut _,
             "client endpoint",
             None,
             transmit_packet::<M>,
@@ -446,14 +446,16 @@ fn client_state_from_netcode_state(state: i32) -> ClientState {
         ClientState::Error
     } else if state == NETCODE_CLIENT_STATE_DISCONNECTED as i32 {
         ClientState::Disconnected
-    } else if state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_REQUEST as i32 {
+    } else if state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_REQUEST as i32
+        || state == NETCODE_CLIENT_STATE_SENDING_CONNECTION_RESPONSE as i32
+    {
         ClientState::Connecting
     } else {
         ClientState::Connected
     }
 }
 
-unsafe extern "C" fn transmit_packet<M>(
+unsafe extern "C" fn transmit_packet<M: NetworkMessage>(
     context: *mut c_void,
     _index: i32,
     packet_sequence: u16,
@@ -467,7 +469,7 @@ unsafe extern "C" fn transmit_packet<M>(
         .transmit_packet(packet_sequence, packet_data, packet_bytes);
 }
 
-unsafe extern "C" fn process_packet<M>(
+unsafe extern "C" fn process_packet<M: NetworkMessage>(
     context: *mut c_void,
     _index: i32,
     packet_sequence: u16,
@@ -481,7 +483,11 @@ unsafe extern "C" fn process_packet<M>(
         .process_packet(packet_sequence, packet_data, packet_bytes)
 }
 
-extern "C" fn state_change_callback<M>(context: *mut c_void, previous: i32, current: i32) {
+extern "C" fn state_change_callback<M: NetworkMessage>(
+    context: *mut c_void,
+    previous: i32,
+    current: i32,
+) {
     let client = context as *mut Client<M>;
     let previous = ClientState::try_from_netcode_client_state_i32(previous).unwrap();
     let current = ClientState::try_from_netcode_client_state_i32(current).unwrap();

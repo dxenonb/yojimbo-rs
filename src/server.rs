@@ -3,6 +3,7 @@ use std::mem::size_of;
 
 use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
 use crate::connection::{Connection, ConnectionErrorLevel};
+use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default};
 
@@ -30,7 +31,7 @@ pub struct Server<M> {
     private_key: [u8; NETCODE_KEY_BYTES],
 }
 
-impl<M> Server<M> {
+impl<M: NetworkMessage> Server<M> {
     pub fn new(
         private_key: &[u8; NETCODE_KEY_BYTES],
         address: String,
@@ -88,7 +89,7 @@ impl<M> Server<M> {
                 reliable_config.name[..name.to_bytes_with_nul().len()].copy_from_slice(unsafe {
                     &*(name.to_bytes_with_nul() as *const [u8] as *const [i8])
                 });
-                reliable_config.context = std::ptr::null_mut();
+                reliable_config.context = self as *mut _ as *mut _;
                 reliable_config.index = i as _;
                 reliable_config.max_packet_size = self.config.connection.max_packet_size as _;
                 reliable_config.fragment_above = self.config.fragment_packets_above as _;
@@ -198,12 +199,10 @@ impl<M> Server<M> {
             let packet_sequence = unsafe { reliable_endpoint_next_packet_sequence(*endpoint) };
             let packet_data_size = self.packet_buffer.len();
             assert_eq!(packet_data_size, self.config.connection.max_packet_size);
-            let packet_data = &mut &mut self.packet_buffer[..];
-            conn.generate_packet(packet_sequence, packet_data);
-            let written_slice_size = packet_data_size - packet_data.len();
+            let written_bytes = conn.generate_packet(packet_sequence, &mut self.packet_buffer[..]);
 
-            if written_slice_size > 0 {
-                let written_slice = &mut self.packet_buffer[..written_slice_size];
+            if written_bytes > 0 {
+                let written_slice = &mut self.packet_buffer[..written_bytes];
                 unsafe {
                     reliable_endpoint_send_packet(
                         *endpoint,
@@ -367,9 +366,7 @@ impl<M> Server<M> {
     // TODO: get client address, connected_client_count
 
     // TODO: loopback
-}
 
-impl<M> Server<M> {
     fn transmit_packet(
         &mut self,
         client_index: i32,
@@ -419,7 +416,6 @@ impl<M> Server<M> {
 
     fn client_connection_mut(&mut self, client_index: i32) -> &mut Connection<M> {
         assert!(self.running());
-        assert!(client_index > 0);
         let client_index = client_index as usize;
         assert!(client_index < self.max_clients);
         assert!(client_index < self.client_connection.len());
@@ -440,7 +436,7 @@ unsafe fn disconnect_client<M>(
     netcode_server_disconnect_client(server, client_index as _);
 }
 
-unsafe extern "C" fn transmit_packet<M>(
+unsafe extern "C" fn transmit_packet<M: NetworkMessage>(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
@@ -454,7 +450,7 @@ unsafe extern "C" fn transmit_packet<M>(
         .transmit_packet(index, packet_sequence, packet_data, packet_bytes);
 }
 
-unsafe extern "C" fn process_packet<M>(
+unsafe extern "C" fn process_packet<M: NetworkMessage>(
     context: *mut c_void,
     index: i32,
     packet_sequence: u16,
@@ -472,7 +468,7 @@ fn is_client_connected(server: *mut netcode_server_t, client_index: usize) -> bo
     unsafe { netcode_server_client_connected(server, client_index as _) != 0 }
 }
 
-unsafe extern "C" fn connect_disconnect_callback<M>(
+unsafe extern "C" fn connect_disconnect_callback<M: NetworkMessage>(
     context: *mut c_void,
     client_index: i32,
     connected: i32,

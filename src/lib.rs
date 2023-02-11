@@ -5,6 +5,7 @@ pub mod channel;
 pub mod client;
 pub mod config;
 pub mod connection;
+pub mod message;
 pub mod network_info;
 pub mod server;
 
