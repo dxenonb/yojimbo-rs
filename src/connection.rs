@@ -30,9 +30,9 @@ pub(crate) struct Connection<M> {
 
 impl<M: NetworkMessage> Connection<M> {
     pub(crate) fn new(config: ConnectionConfig, time: f64) -> Connection<M> {
-        assert!(config.num_channels >= 1);
+        assert!(config.channels.len() >= 1);
 
-        let mut channels = Vec::with_capacity(config.num_channels);
+        let mut channels = Vec::with_capacity(config.channels.len());
         for (channel_index, channel_config) in config.channels.iter().enumerate() {
             channels.push(Channel::new(channel_config.clone(), channel_index, time));
         }

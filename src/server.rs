@@ -2,11 +2,11 @@ use std::ffi::{c_void, CStr, CString};
 use std::mem::size_of;
 
 use crate::channel::ChannelCounters;
-use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
+use crate::config::ClientServerConfig;
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
-use crate::{bindings::*, gf_init_default};
+use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 pub struct Server<M> {
     /// Base client/server config.
@@ -29,17 +29,17 @@ pub struct Server<M> {
     address: String,
     bound_port: Option<u16>,
     server: *mut netcode_server_t,
-    private_key: [u8; NETCODE_KEY_BYTES],
+    private_key: [u8; PRIVATE_KEY_BYTES],
 }
 
 impl<M: NetworkMessage> Server<M> {
     pub fn new(
-        private_key: &[u8; NETCODE_KEY_BYTES],
+        private_key: &[u8; PRIVATE_KEY_BYTES],
         address: String,
         config: ClientServerConfig,
         time: f64,
     ) -> Server<M> {
-        assert_eq!(private_key.len(), NETCODE_KEY_BYTES);
+        assert_eq!(private_key.len(), PRIVATE_KEY_BYTES);
 
         assert_ne!(
             size_of::<M>(),

@@ -32,7 +32,7 @@ fn client_main() {
 
     println!("client id is {:x}", client_id);
 
-    let config = ClientServerConfig::default();
+    let config = ClientServerConfig::new(8);
     let mut client: Client<TestMessage> = Client::new("0.0.0.0".to_string(), config, time);
 
     let private_key = [0; PRIVATE_KEY_BYTES];

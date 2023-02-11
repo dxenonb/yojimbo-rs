@@ -23,14 +23,15 @@ fn main() {
 fn server_main() {
     let mut time = 100.0;
 
-    let config = ClientServerConfig::default();
+    let config = ClientServerConfig::new(8);
     let max_clients = 16;
     let private_key = [0; PRIVATE_KEY_BYTES];
 
     let server_address = "127.0.0.1:40000".to_string();
     println!("starting server on address {} (insecure)", &server_address);
 
-    let mut server: Server<TestMessage> = Server::new(&private_key, server_address, config, time);
+    let mut server: Server<TestMessage> =
+        Server::new(&private_key, server_address, config.clone(), time);
     server.start(max_clients);
 
     let (stop_tx, stop_rx) = channel();

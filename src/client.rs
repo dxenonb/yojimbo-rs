@@ -2,7 +2,7 @@ use std::ffi::{c_void, CString};
 use std::usize;
 
 use crate::channel::ChannelCounters;
-use crate::config::{ClientServerConfig, NETCODE_KEY_BYTES};
+use crate::config::ClientServerConfig;
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
@@ -116,7 +116,7 @@ impl<M: NetworkMessage> Client<M> {
 
     pub fn insecure_connect(
         &mut self,
-        private_key: &[u8; NETCODE_KEY_BYTES],
+        private_key: &[u8; PRIVATE_KEY_BYTES],
         client_id: u64,
         server_addresses: &[&str],
     ) {

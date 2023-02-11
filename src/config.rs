@@ -3,33 +3,10 @@ use crate::gf_init_default;
 use std::ffi::c_void;
 use std::ffi::CString;
 
-// TODO: remove maximums?
-const MAX_CLIENTS: u32 = 64;
-const MAX_CHANNELS: usize = 64;
-pub(crate) const NETCODE_KEY_BYTES: usize = 32;
-const CONNECT_TOKEN_BYTES: usize = 2048;
 const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
 const YOJIMBO_DEFAULT_TIMEOUT: i32 = 5;
 
-#[derive(Debug, Copy, Clone)]
-pub struct ConnectionConfig {
-    pub num_channels: usize, // TODO: require use of channels.len
-    pub max_packet_size: usize,
-    pub channels: [ChannelConfig; MAX_CHANNELS],
-}
-
-impl Default for ConnectionConfig {
-    fn default() -> Self {
-        ConnectionConfig {
-            num_channels: 1,
-            max_packet_size: 8 * 1024,
-            // TODO: change this back to reliable ordered when implemented
-            channels: [ChannelConfig::new(ChannelType::UnreliableUnordered); MAX_CHANNELS],
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct ClientServerConfig {
     pub connection: ConnectionConfig,
     /// Clients can only connect to servers with the same protocol id. Use this for versioning.
@@ -62,9 +39,9 @@ pub struct ClientServerConfig {
     pub rtt_smoothing_factor: f32,
 }
 
-impl Default for ClientServerConfig {
-    fn default() -> Self {
-        let connection = ConnectionConfig::default();
+impl ClientServerConfig {
+    pub fn new(channels: usize) -> Self {
+        let connection = ConnectionConfig::new(channels);
         let packet_fragment_size = 1024;
         let max_packet_fragments =
             (connection.max_packet_size as f64 / packet_fragment_size as f64).ceil() as _;
@@ -84,6 +61,23 @@ impl Default for ClientServerConfig {
             acked_packets_buffer_size: 256,
             received_packets_buffer_size: 256,
             rtt_smoothing_factor: 0.0025,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectionConfig {
+    pub max_packet_size: usize,
+    pub channels: Vec<ChannelConfig>,
+}
+
+impl ConnectionConfig {
+    fn new(channels: usize) -> Self {
+        // TODO: change this back to reliable ordered when implemented
+        let channels = vec![ChannelConfig::new(ChannelType::UnreliableUnordered); channels];
+        ConnectionConfig {
+            max_packet_size: 8 * 1024,
+            channels,
         }
     }
 }

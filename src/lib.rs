@@ -9,7 +9,8 @@ pub mod message;
 pub mod network_info;
 pub mod server;
 
-pub const PRIVATE_KEY_BYTES: usize = config::NETCODE_KEY_BYTES;
+pub const PRIVATE_KEY_BYTES: usize = bindings::NETCODE_KEY_BYTES as usize;
+pub const CONNECT_TOKEN_BYTES: usize = bindings::NETCODE_CONNECT_TOKEN_BYTES as usize;
 
 #[derive(Debug, Copy, Clone)]
 #[repr(i32)]
