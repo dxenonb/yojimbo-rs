@@ -115,9 +115,9 @@ impl<M: NetworkMessage> Connection<M> {
         true
     }
 
-    /// Generate a packet.
+    /// Generate a packet, writing to packet_data.
     ///
-    /// Advances `packet_data` as it writes.
+    /// Returns the *number of bytes* written (not bits, which are tracked in the function body).
     pub(crate) fn generate_packet(
         &mut self,
         packet_sequence: u16,
