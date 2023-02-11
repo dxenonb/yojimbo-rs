@@ -3,7 +3,6 @@ use crate::gf_init_default;
 use std::ffi::c_void;
 use std::ffi::CString;
 
-const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
 const YOJIMBO_DEFAULT_TIMEOUT: i32 = 5;
 
 #[derive(Debug, Clone)]

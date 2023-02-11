@@ -18,7 +18,7 @@ MVP tasks:
  - [ ] Add Automated Tests
  - [ ] Update dependencies (netcode, reliable, and libsodium)
  - [ ] Review unsafe code (some unsafe blocks are a bit cavalier, and unsafety may be exposed in safe APIs)
- - [ ] Review error handling and use Option/Result
+ - [ ] Review error handling and use Option/Result (need to resolve some panics still)
  - [ ] Impl client Matcher service
 
 Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C++ API as close as possible, with some ommissions:

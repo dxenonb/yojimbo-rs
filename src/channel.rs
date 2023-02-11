@@ -11,6 +11,9 @@ use crate::{
     message::NetworkMessage,
 };
 
+#[cfg(feature = "serialize_check")]
+pub(crate) const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
+
 pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
 // pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
 pub(crate) const CONSERVATIVE_CHANNEL_HEADER_BITS: usize = 32;
@@ -358,6 +361,13 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
 
         for message in &self.messages {
             message.serialize(&mut writer)?;
+
+            #[cfg(feature = "serialize_check")]
+            {
+                writer
+                    .write_u32::<LittleEndian>(SERIALIZE_CHECK_VALUE)
+                    .expect("failed to write check value");
+            }
         }
 
         Ok(())
@@ -379,6 +389,18 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
 
         for _ in 0..message_count {
             messages.push(M::deserialize(&mut reader)?);
+
+            #[cfg(feature = "serialize_check")]
+            {
+                let check_value = reader
+                    .read_u32::<LittleEndian>()
+                    .expect("expected check value, found end of stream");
+                assert_eq!(
+                    check_value, SERIALIZE_CHECK_VALUE,
+                    "expected check value {} but found {}",
+                    SERIALIZE_CHECK_VALUE, check_value
+                );
+            }
         }
 
         Ok(messages)
