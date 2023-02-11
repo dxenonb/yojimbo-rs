@@ -23,7 +23,8 @@ MVP tasks:
 
 Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C++ API as close as possible, with some ommissions:
 
- - There is no bit packer or serialization framework included in this library, instead the next step is to expose hooks that serde et. al. can work with.
+ - There is serialization framework included in this library (you're probably going to use serde)
+ - There is no bit packer (for now)
  - There is no API for specifying any allocators (yet)
  - The Matcher is not ported yet, so there is no included way to securely get a private key/connect token to your client out-of-the-box.
 

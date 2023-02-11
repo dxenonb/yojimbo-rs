@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, io::Cursor, mem::size_of};
+use std::{
+    collections::VecDeque,
+    io::{self, Cursor, IoSlice},
+    mem::size_of,
+};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
@@ -235,10 +239,9 @@ impl<M: NetworkMessage> Unreliable<M> {
 
             // TODO: block message
 
-            // TODO: something analagous to measure stream
-            // - assuming Message is an enum (and does not wrap a pointer to something), it should always be the same size
-            // - the (network) serialized version should generally be smaller
-            let message_bits = size_of::<M>();
+            let mut sink = MeasureSink::new();
+            message.serialize(&mut sink).unwrap();
+            let message_bits = 8 * sink.bytes;
 
             if used_bits + message_bits > available_bits {
                 continue;
@@ -488,3 +491,34 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
 // }
 
 // TODO: fix https://github.com/networkprotocol/yojimbo/issues/138
+
+/// A writer just like std::io::Sink but it measures like yojimbo's measure stream.
+struct MeasureSink {
+    bytes: usize,
+}
+
+impl MeasureSink {
+    fn new() -> MeasureSink {
+        MeasureSink { bytes: 0 }
+    }
+}
+
+impl io::Write for MeasureSink {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.bytes += buf.len();
+        Ok(buf.len())
+    }
+
+    #[inline]
+    fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
+        let total_len = bufs.iter().map(|b| b.len()).sum();
+        self.bytes += total_len;
+        Ok(total_len)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
