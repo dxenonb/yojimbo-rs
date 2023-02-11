@@ -157,9 +157,8 @@ impl<M: NetworkMessage> Server<M> {
     }
 
     pub fn stop(&mut self) {
-        // TODO: review this after server is functioning
-
         if !self.server.is_null() {
+            self.bound_port = None;
             unsafe {
                 netcode_server_stop(self.server);
                 netcode_server_destroy(self.server);
@@ -180,7 +179,7 @@ impl<M: NetworkMessage> Server<M> {
 
             self.running = false;
             self.max_clients = 0;
-            self.packet_buffer.clear();
+            self.packet_buffer = Vec::new();
         }
     }
 

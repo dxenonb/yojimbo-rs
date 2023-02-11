@@ -353,6 +353,7 @@ impl<M: NetworkMessage> Client<M> {
         if self.client.is_null() {
             return;
         }
+        self.bound_port = None;
         unsafe { netcode_client_destroy(self.client) };
         self.client = std::ptr::null_mut();
     }
@@ -414,6 +415,7 @@ impl<M: NetworkMessage> Client<M> {
         }
         self.network_simulator = None;
         self.connection = None;
+        self.packet_buffer.clear();
     }
 }
 

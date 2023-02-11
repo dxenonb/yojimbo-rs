@@ -89,7 +89,6 @@ impl<M: NetworkMessage> Connection<M> {
                 .deserialize(&self.config, packet_data, packet_bytes)
                 .expect("failed to deserialize");
             // TODO: error handling
-            // TODO: serialize check
         }
 
         for entry in packet.channel_data {
@@ -149,7 +148,6 @@ impl<M: NetworkMessage> Connection<M> {
                 .serialize(&self.config, packet_data)
                 .expect("failed to deserialize")
             // TODO: error handling
-            // TODO: serialize check
         } else {
             0
         }
