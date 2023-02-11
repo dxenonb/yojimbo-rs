@@ -9,10 +9,9 @@ use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 #[derive(Debug, Clone, Copy)]
-#[repr(i32)]
 pub enum ClientState {
-    Error = -1,
-    Disconnected = 0,
+    Error,
+    Disconnected,
     Connecting,
     Connected,
 }
