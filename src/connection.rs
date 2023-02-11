@@ -1,4 +1,4 @@
-use std::slice;
+use std::{io::Cursor, slice};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
@@ -8,6 +8,7 @@ use crate::{
         CONSERVATIVE_PACKET_HEADER_BITS,
     },
     config::ConnectionConfig,
+    message::NetworkMessage,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -27,7 +28,7 @@ pub(crate) struct Connection<M> {
     error_level: ConnectionErrorLevel,
 }
 
-impl<M> Connection<M> {
+impl<M: NetworkMessage> Connection<M> {
     pub(crate) fn new(config: ConnectionConfig, time: f64) -> Connection<M> {
         assert!(config.num_channels >= 1);
 
@@ -84,7 +85,10 @@ impl<M> Connection<M> {
             assert!(!packet_data.is_null());
             assert!(packet_bytes > 0);
 
-            packet.deserialize(&self.config, packet_data, packet_bytes);
+            packet
+                .deserialize(&self.config, packet_data, packet_bytes)
+                .expect("failed to deserialize");
+            // TODO: error handling
             // TODO: serialize check
         }
 
@@ -114,17 +118,20 @@ impl<M> Connection<M> {
     /// Generate a packet.
     ///
     /// Advances `packet_data` as it writes.
-    pub(crate) fn generate_packet(&mut self, packet_sequence: u16, packet_data: &mut &mut [u8]) {
+    pub(crate) fn generate_packet(
+        &mut self,
+        packet_sequence: u16,
+        packet_data: &mut [u8],
+    ) -> usize {
         if self.channels.len() == 0 {
-            return;
+            return 0;
         }
 
         // REFACTOR: consider caching
         let mut channel_data = Vec::new();
 
         assert!(packet_data.len() > 0);
-        let max_packet_size = packet_data.len();
-        let mut available_bits = max_packet_size * 8 - CONSERVATIVE_PACKET_HEADER_BITS;
+        let mut available_bits = packet_data.len() * 8 - CONSERVATIVE_PACKET_HEADER_BITS;
 
         for channel in &mut self.channels {
             let (packet_data, packet_data_bits) =
@@ -138,8 +145,13 @@ impl<M> Connection<M> {
 
         if !channel_data.is_empty() {
             let packet = ConnectionPacket::new(channel_data);
-            packet.serialize(&self.config, packet_data);
+            packet
+                .serialize(&self.config, packet_data)
+                .expect("failed to deserialize")
+            // TODO: error handling
             // TODO: serialize check
+        } else {
+            0
         }
     }
 
@@ -171,26 +183,29 @@ struct ConnectionPacket<M> {
     channel_data: Vec<ChannelPacketData<M>>,
 }
 
-impl<M> ConnectionPacket<M> {
+impl<M: NetworkMessage> ConnectionPacket<M> {
     fn new(channel_data: Vec<ChannelPacketData<M>>) -> ConnectionPacket<M> {
         ConnectionPacket { channel_data }
     }
 
-    fn serialize(&self, config: &ConnectionConfig, dest: &mut &mut [u8]) {
+    fn serialize(&self, config: &ConnectionConfig, dest: &mut [u8]) -> Result<usize, M::Error> {
         assert!(self.channel_data.len() < u16::MAX as usize);
 
-        let max_packet_size = dest.len();
-        dest.write_u16::<LittleEndian>(self.channel_data.len() as _)
+        let mut writer = Cursor::new(dest);
+        writer
+            .write_u16::<LittleEndian>(self.channel_data.len() as _)
             .unwrap();
-        assert!(max_packet_size - dest.len() < CONSERVATIVE_PACKET_HEADER_BITS);
+        assert!((writer.position() as usize) < CONSERVATIVE_PACKET_HEADER_BITS);
 
         if self.channel_data.is_empty() {
-            return;
+            return Ok(writer.position() as _);
         }
 
         for channel_data in &self.channel_data {
-            channel_data.serialize(config, dest);
+            channel_data.serialize(config, &mut writer)?;
         }
+
+        Ok(writer.position() as _)
     }
 
     unsafe fn deserialize(
@@ -198,7 +213,7 @@ impl<M> ConnectionPacket<M> {
         config: &ConnectionConfig,
         packet_data: *const u8,
         packet_bytes: usize,
-    ) {
+    ) -> Result<(), M::Error> {
         /*
            SAFETY: packet_data comes from a netcode_connection_payload_packet_t
 
@@ -210,14 +225,16 @@ impl<M> ConnectionPacket<M> {
         */
         assert!(!packet_data.is_null());
         debug_assert!(packet_bytes < isize::MAX as usize);
-        let mut src = slice::from_raw_parts(packet_data, packet_bytes);
+        let src = slice::from_raw_parts(packet_data, packet_bytes);
 
-        let reader = &mut src;
+        let mut reader = Cursor::new(src);
         let channels = reader.read_u16::<LittleEndian>().unwrap() as usize;
 
         for _ in 0..channels {
-            let data = ChannelPacketData::deserialize(config, reader);
+            let data = ChannelPacketData::deserialize(config, &mut reader)?;
             self.channel_data.push(data);
         }
+
+        Ok(())
     }
 }

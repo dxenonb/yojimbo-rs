@@ -1,9 +1,7 @@
-#![allow(unused)]
-
 use crate::bindings::*;
 use crate::gf_init_default;
 use std::ffi::c_void;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 
 // TODO: remove maximums?
 const MAX_CLIENTS: u32 = 64;
@@ -109,6 +107,7 @@ pub(crate) type ReliableProcessPacketFn = unsafe extern "C" fn(
 impl ClientServerConfig {
     pub(crate) fn new_reliable_config(
         &self,
+        context: *mut c_void,
         name: &str,
         client_index: Option<usize>,
         transmit_packet: ReliableTransmitPacketFn,
@@ -119,7 +118,7 @@ impl ClientServerConfig {
         let name = CString::new(name).unwrap();
         reliable_config.name[..name.to_bytes_with_nul().len()]
             .copy_from_slice(unsafe { &*(name.to_bytes_with_nul() as *const [u8] as *const [i8]) });
-        reliable_config.context = std::ptr::null_mut();
+        reliable_config.context = context;
         reliable_config.index = client_index.unwrap_or(0) as _;
         reliable_config.max_packet_size = self.connection.max_packet_size as _;
         reliable_config.fragment_above = self.fragment_packets_above as _;
