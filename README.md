@@ -13,7 +13,7 @@ MVP tasks:
  - [x] Impl client and server connection
  - [x] Impl unreliable channels
  - [ ] Impl reliable channels
- - [ ] Impl message serialization
+ - [x] Impl message serialization
  - [ ] Add CI/CD
  - [ ] Add Automated Tests
  - [ ] Update dependencies (netcode, reliable, and libsodium)

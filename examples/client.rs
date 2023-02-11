@@ -5,7 +5,9 @@ use rust_game_networking::{
     set_bindings_log_level, shutdown, BindingsLogLevel, PRIVATE_KEY_BYTES,
 };
 
-struct Message(u32);
+#[path = "./common/mod.rs"]
+mod common;
+use common::*;
 
 fn main() {
     env_logger::init();
@@ -31,7 +33,7 @@ fn client_main() {
     println!("client id is {:x}", client_id);
 
     let config = ClientServerConfig::default();
-    let mut client: Client<Message> = Client::new("0.0.0.0".to_string(), config, time);
+    let mut client: Client<TestMessage> = Client::new("0.0.0.0".to_string(), config, time);
 
     let private_key = [0; PRIVATE_KEY_BYTES];
 
@@ -46,12 +48,36 @@ fn client_main() {
         &server_address, client_port
     );
 
-    let delta_time = 0.01;
+    let delta_time = 1.0;
+
+    let mut sent = 0;
 
     loop {
         if stop_rx.try_recv().is_ok() {
             println!("stopping client");
             break;
+        }
+
+        if client.is_connected() {
+            if time > 20.0 && sent == 0 {
+                println!("\tsending first message");
+                client.send_message(
+                    0,
+                    TestMessage::String(TestMessageStruct {
+                        value: "hello world!".to_string(),
+                        supplmentary_value: 42,
+                    }),
+                );
+                sent += 1;
+            } else if time > 40.0 && sent == 1 {
+                println!("\tsending second message");
+                client.send_message(0, TestMessage::Int(2015));
+                sent += 1;
+            } else if time > 60.0 && sent == 2 {
+                println!("\tsending third message");
+                client.send_message(0, TestMessage::Float(3.14159));
+                sent += 1;
+            }
         }
 
         client.send_packets();

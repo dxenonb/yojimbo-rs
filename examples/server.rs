@@ -5,13 +5,15 @@ use rust_game_networking::{
     BindingsLogLevel, PRIVATE_KEY_BYTES,
 };
 
-struct Message(u32);
+#[path = "./common/mod.rs"]
+mod common;
+use common::*;
 
 fn main() {
     env_logger::init();
 
     initialize().unwrap();
-    set_bindings_log_level(BindingsLogLevel::Error);
+    set_bindings_log_level(BindingsLogLevel::Info);
 
     server_main();
 
@@ -28,7 +30,7 @@ fn server_main() {
     let server_address = "127.0.0.1:40000".to_string();
     println!("starting server on address {} (insecure)", &server_address);
 
-    let mut server: Server<Message> = Server::new(&private_key, server_address, config, time);
+    let mut server: Server<TestMessage> = Server::new(&private_key, server_address, config, time);
     server.start(max_clients);
 
     let (stop_tx, stop_rx) = channel();
@@ -43,6 +45,10 @@ fn server_main() {
 
         server.send_packets();
         server.receive_packets();
+
+        if let Some(message) = server.receive_message(0, 0) {
+            println!("\tserver got a message: {:?}", &message);
+        }
 
         time += delta_time;
 
