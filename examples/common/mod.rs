@@ -3,11 +3,13 @@ use std::error::Error;
 use rust_game_networking::message::NetworkMessage;
 use serde::{Deserialize, Serialize};
 
+pub const SPECIAL_MESSAGE_STRING: &str = "server got the special message";
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TestMessage {
     Int(i32),
     Float(f32),
-    String(TestMessageStruct),
+    Struct(TestMessageStruct),
 }
 
 impl NetworkMessage for TestMessage {

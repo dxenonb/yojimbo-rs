@@ -73,18 +73,20 @@ fn client_main() {
         client.receive_packets();
 
         if client.is_connected() {
+            handle_special_message(&mut client);
+
             if time > 20.0 && sent == 0 {
                 println!("\tsending first message");
                 client.send_message(
                     0,
-                    TestMessage::String(TestMessageStruct {
+                    TestMessage::Struct(TestMessageStruct {
                         value: "hello world!".to_string(),
                         supplmentary_value: 42,
                     }),
                 );
                 sent += 1;
             } else if time > 40.0 && sent == 1 {
-                println!("\tsending second message");
+                println!("\tsending second message, expecting special response");
                 client.send_message(0, TestMessage::Int(2015));
                 sent += 1;
             } else if time > 60.0 && sent == 2 {
@@ -101,4 +103,15 @@ fn client_main() {
 
     client.disconnect();
     println!("client exited");
+}
+
+fn handle_special_message(client: &mut Client<TestMessage>) {
+    if let Some(TestMessage::Struct(message)) = client.receive_message(1) {
+        if message.value == SPECIAL_MESSAGE_STRING {
+            println!(
+                "client got special message with value: {}",
+                message.supplmentary_value
+            );
+        }
+    }
 }

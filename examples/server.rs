@@ -1,8 +1,8 @@
 use std::{sync::mpsc::channel, thread::sleep, time::Duration};
 
 use rust_game_networking::{
-    config::ClientServerConfig, initialize, server::Server, set_bindings_log_level, shutdown,
-    BindingsLogLevel, PRIVATE_KEY_BYTES,
+    bindings::netcode_random_bytes, config::ClientServerConfig, initialize, server::Server,
+    set_bindings_log_level, shutdown, BindingsLogLevel, PRIVATE_KEY_BYTES,
 };
 
 #[path = "./common/mod.rs"]
@@ -61,6 +61,9 @@ fn server_main() {
                         "server got a message from client {} on channel {}:\n\t{:?}",
                         client, channel, &message
                     );
+                    if matches!(message, TestMessage::Int(2015)) {
+                        send_special_response(&mut server, client);
+                    }
                 }
             }
         }
@@ -73,4 +76,17 @@ fn server_main() {
     println!("stopping server");
     server.stop();
     println!("server stopped");
+}
+
+fn send_special_response(server: &mut Server<TestMessage>, client: usize) {
+    let mut supplementary_value = [0u8; 4];
+    unsafe { netcode_random_bytes(supplementary_value.as_mut_ptr(), 4) };
+    server.send_message(
+        client,
+        1,
+        TestMessage::Struct(TestMessageStruct {
+            value: SPECIAL_MESSAGE_STRING.to_string(),
+            supplmentary_value: i32::from_le_bytes(supplementary_value),
+        }),
+    );
 }
