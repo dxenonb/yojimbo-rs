@@ -379,7 +379,30 @@ impl<M: NetworkMessage> Server<M> {
         connection.channel_counters(channel_index)
     }
 
-    // TODO: get client address, connected_client_count
+    pub fn connected_client_count(&self) -> usize {
+        if self.server.is_null() {
+            return 0;
+        }
+        if self.client_connection.len() == 0 {
+            return 0;
+        }
+        let count = unsafe { netcode_server_num_connected_clients(self.server) };
+        assert!(count >= 0);
+        count as usize
+    }
+
+    pub fn client_address(&self, client_index: usize) -> Option<NetcodeAddress> {
+        if !self.is_client_connected(client_index) {
+            return None;
+        }
+        Some(unsafe {
+            let address = netcode_server_client_address(self.server, client_index as _);
+            if address.is_null() {
+                return None;
+            }
+            NetcodeAddress::new(address)
+        })
+    }
 
     // TODO: loopback
 
