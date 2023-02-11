@@ -42,22 +42,30 @@ fn server_main() {
         if stop_rx.try_recv().is_ok() {
             break;
         }
-
-        server.send_packets();
-        server.receive_packets();
-
-        if let Some(message) = server.receive_message(0, 0) {
-            println!("\tserver got a message: {:?}", &message);
-        }
-
-        time += delta_time;
-
-        server.advance_time(time);
-
         if !server.running() {
             println!("server not running");
             break;
         }
+
+        time += delta_time;
+        server.advance_time(time);
+        server.receive_packets();
+
+        for client in 0..max_clients {
+            for channel in 0..config.connection.channels.len() {
+                if !server.is_client_connected(client) {
+                    continue;
+                }
+                while let Some(message) = server.receive_message(client, channel) {
+                    println!(
+                        "server got a message from client {} on channel {}:\n\t{:?}",
+                        client, channel, &message
+                    );
+                }
+            }
+        }
+
+        server.send_packets();
 
         sleep(Duration::from_secs_f64(delta_time));
     }

@@ -58,6 +58,20 @@ fn client_main() {
             break;
         }
 
+        time += delta_time;
+        client.advance_time(time);
+
+        if client.is_disconnected() {
+            println!("client was disconnected");
+            break;
+        }
+        if client.connection_failed() {
+            println!("stopping client due to connection failure");
+            break;
+        }
+
+        client.receive_packets();
+
         if client.is_connected() {
             if time > 20.0 && sent == 0 {
                 println!("\tsending first message");
@@ -81,20 +95,6 @@ fn client_main() {
         }
 
         client.send_packets();
-        client.receive_packets();
-
-        if client.is_disconnected() {
-            break;
-        }
-
-        time += delta_time;
-
-        client.advance_time(time);
-
-        if client.connection_failed() {
-            println!("stopping client");
-            break;
-        }
 
         sleep(Duration::from_secs_f64(delta_time));
     }
