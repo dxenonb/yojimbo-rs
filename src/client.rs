@@ -415,7 +415,9 @@ impl<M: NetworkMessage> Client<M> {
         }
         self.network_simulator = None;
         self.connection = None;
-        self.packet_buffer.clear();
+        for i in &mut self.packet_buffer {
+            *i = 0;
+        }
     }
 }
 
