@@ -195,14 +195,14 @@ impl<M: NetworkMessage> Client<M> {
     pub fn send_message(&mut self, channel_index: usize, message: M) {
         self.connection
             .as_mut()
-            .unwrap()
+            .expect("client not connected")
             .send_message(channel_index, message);
     }
 
     pub fn receive_message(&mut self, channel_index: usize) -> Option<M> {
         self.connection
             .as_mut()
-            .unwrap()
+            .expect("client not connected")
             .receive_message(channel_index)
     }
 
