@@ -33,7 +33,10 @@ fn main() {
 
     // let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     // println!("cargo:rustc-link-search=native={:?}", out_path);
-    println!("cargo:rustc-link-search=native=lib/windows");
+
+    let mut sodium_path = env::current_dir().unwrap();
+    sodium_path.push("lib/windows");
+    println!("cargo:rustc-link-search=native={}", sodium_path.display());
     println!("cargo:rustc-link-lib=static=sodium");
 
     bindings();
