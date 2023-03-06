@@ -1,3 +1,4 @@
+#[derive(Debug, Clone)]
 pub struct NetworkInfo {
     /// Round trip time estimate (milliseconds).
     pub rtt: f32,
