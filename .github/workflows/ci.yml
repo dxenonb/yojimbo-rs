@@ -26,10 +26,20 @@ jobs:
       run: cargo fmt -- --check
 
   build:
+    strategy: 
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
     name: Builds project
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
+    - name: Install dependencies (ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run:
+        sudo apt-get install libsodium-dev
+
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
