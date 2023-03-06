@@ -1,0 +1,42 @@
+name: CLI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: "00 00 01,15 * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-fmt:
+    name: Check formatting
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+    - uses: actions/checkout@v2
+
+    - name: Check formatting
+      run: cargo fmt -- --check
+
+  build:
+    name: Builds project
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+    - uses: actions/checkout@v2
+
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Build docs
+      run: cargo doc --verbose
+
+    - name: Build examples
+      run: cargo build --verbose --examples
