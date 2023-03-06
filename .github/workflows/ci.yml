@@ -18,7 +18,9 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Check formatting
       run: cargo fmt -- --check
@@ -29,7 +31,9 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
 
     - name: Build
       run: cargo build --verbose
