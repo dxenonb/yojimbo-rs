@@ -44,12 +44,10 @@ fn main() {
 
 fn bindings() {
     // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=lib/reliable.h");
-    println!("cargo:rerun-if-changed=lib/netcode.h");
+    println!("cargo:rerun-if-changed=lib/bindings.h");
 
     let bindings = bindgen::Builder::default()
-        .header("lib/reliable.h")
-        .header("lib/netcode.h")
+        .header("lib/bindings.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
         .expect("Unable to generate bindings");

@@ -441,8 +441,8 @@ fn generate_insecure_connect_token(
     let ok = unsafe {
         netcode_generate_connect_token(
             server_addresses.len() as i32,
-            server_address_string_pointers.as_ptr() as *mut *mut i8,
-            server_address_string_pointers.as_ptr() as *mut *mut i8,
+            server_address_string_pointers.as_ptr() as *mut *const i8,
+            server_address_string_pointers.as_ptr() as *mut *const i8,
             config.timeout,
             config.timeout,
             client_id,

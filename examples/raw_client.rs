@@ -55,8 +55,8 @@ unsafe fn raw_client() {
     let ok = unsafe {
         netcode_generate_connect_token(
             1,
-            &mut (server_address.as_ptr() as *mut _),
-            &mut (server_address.as_ptr() as *mut _),
+            &mut (server_address.as_ptr() as *const _),
+            &mut (server_address.as_ptr() as *const _),
             connect_token_expiry,
             connect_token_timeout,
             client_id,
