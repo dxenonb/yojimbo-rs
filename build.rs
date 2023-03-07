@@ -79,7 +79,7 @@ fn libsodium() -> Library {
 #[cfg(unix)]
 fn libsodium() -> Library {
     let libsodium = pkg_config::Config::new()
-        .atleast_version("0.29.2")
+        .atleast_version("1.0.18")
         .probe("libsodium")
         .unwrap();
     Library {
