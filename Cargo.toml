@@ -16,6 +16,7 @@ byteorder = "1.4.3"
 [build-dependencies]
 bindgen = "0.63.0"
 cc = "1.0.79"
+pkg-config = "0.3.26"
 
 [dev-dependencies]
 ctrlc = "3.2.5"
