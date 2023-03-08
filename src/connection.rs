@@ -117,6 +117,10 @@ impl<M: NetworkMessage> Connection<M> {
     /// Generate a packet, writing to packet_data.
     ///
     /// Returns the *number of bytes* written (not bits, which are tracked in the function body).
+    ///
+    /// Caller should call `reliable_endpoint_send_packet` after this if bytes were written.
+    /// Reliable will then call the `transmit_packet` callback as appropriate (possibly
+    /// fragmenting the generated packet).
     pub(crate) fn generate_packet(
         &mut self,
         packet_sequence: u16,
