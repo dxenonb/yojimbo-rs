@@ -136,7 +136,6 @@ impl ClientServerConfig {
 #[derive(Debug, Copy, Clone)]
 pub struct ChannelConfig {
     pub kind: ChannelType,
-    pub disable_blocks: bool,
     pub sent_packet_buffer_size: usize,
     pub message_send_queue_size: usize,
     pub message_receive_queue_size: usize,
@@ -148,32 +147,32 @@ pub struct ChannelConfig {
     pub max_messages_per_packet: usize,
     /// Maximum amount of message data to write to the packet for this channel (bytes). Specifying None means the channel can use up to the rest of the bytes remaining in the packet.
     pub packet_budget: Option<usize>,
-    pub max_block_size: usize,
-    pub block_fragment_size: usize,
-    pub message_resend_time: f32,
-    pub block_fragment_resend_time: f32,
+    pub message_resend_time: f64,
+    pub block_fragment_resend_time: f64,
+    // TODO: blocks: pub max_block_size: usize, pub block_fragment_size: usize, pub disable_blocks: bool,
 }
 
 impl ChannelConfig {
     pub fn new(kind: ChannelType) -> Self {
         ChannelConfig {
             kind,
-            disable_blocks: false,
             sent_packet_buffer_size: 1024,
             message_send_queue_size: 1024,
             message_receive_queue_size: 1024,
             max_messages_per_packet: 256,
             packet_budget: None,
-            max_block_size: 256 * 1024,
-            block_fragment_size: 1024,
             message_resend_time: 0.1,
             block_fragment_resend_time: 0.25,
+            // TODO: blocks:
+            // disable_blocks: false,
+            // max_block_size: 256 * 1024,
+            // block_fragment_size: 1024,
         }
     }
 
-    pub fn max_fragments_per_block(&self) -> usize {
-        self.max_block_size / self.block_fragment_size
-    }
+    // pub fn max_fragments_per_block(&self) -> usize {
+    //     self.max_block_size / self.block_fragment_size
+    // }
 }
 
 /// Determines the reliability and ordering guarantees for a channel.
