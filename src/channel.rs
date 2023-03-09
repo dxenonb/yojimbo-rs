@@ -3,7 +3,7 @@ use crate::{
     message::NetworkMessage,
 };
 
-use self::{processor::Processor, unreliable::Unreliable};
+use self::{processor::Processor, reliable::Reliable, unreliable::Unreliable};
 
 mod channel_packet_data;
 mod processor;
@@ -42,16 +42,19 @@ pub struct Channel<M> {
     config: ChannelConfig,
     channel_index: usize,
     error_level: ChannelErrorLevel,
-    processor: Unreliable<M>,
+    processor: Box<dyn Processor<M>>,
     counters: ChannelCounters,
 }
 
 impl<M: NetworkMessage> Channel<M> {
-    pub(crate) fn new(config: ChannelConfig, channel_index: usize, _time: f64) -> Channel<M> {
+    pub(crate) fn new(config: ChannelConfig, channel_index: usize, time: f64) -> Channel<M> {
         if !matches!(config.kind, ChannelType::UnreliableUnordered) {
             unimplemented!("reliable ordered channels not implemented");
         }
-        let processor = Unreliable::new(&config);
+        let processor: Box<dyn Processor<M>> = match config.kind {
+            ChannelType::ReliableOrdered => Box::new(Reliable::new(config, time)),
+            ChannelType::UnreliableUnordered => Box::new(Unreliable::new(&config)),
+        };
         Channel {
             config,
             channel_index,

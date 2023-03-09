@@ -72,8 +72,7 @@ pub struct ConnectionConfig {
 
 impl ConnectionConfig {
     fn new(channels: usize) -> Self {
-        // TODO: change this back to reliable ordered when implemented
-        let channels = vec![ChannelConfig::new(ChannelType::UnreliableUnordered); channels];
+        let channels = vec![ChannelConfig::new(ChannelType::ReliableOrdered); channels];
         ConnectionConfig {
             max_packet_size: 8 * 1024,
             channels,
