@@ -5,9 +5,9 @@ use crate::{
 
 use self::{processor::Processor, unreliable::Unreliable};
 
-mod processor;
-// mod reliable;
 mod channel_packet_data;
+mod processor;
+mod reliable;
 mod sequence_buffer;
 mod unreliable;
 
