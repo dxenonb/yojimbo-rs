@@ -8,6 +8,7 @@ use self::{processor::Processor, unreliable::Unreliable};
 mod processor;
 // mod reliable;
 mod channel_packet_data;
+mod sequence_buffer;
 mod unreliable;
 
 // TODO: encapsulate this better
@@ -17,7 +18,7 @@ pub(crate) use channel_packet_data::ChannelPacketData;
 pub(crate) const SERIALIZE_CHECK_VALUE: u32 = 0x12345678;
 
 pub(crate) const CONSERVATIVE_MESSAGE_HEADER_BITS: usize = 32;
-// pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITES: usize = 64;
+// pub(crate) const CONSERVATIVE_FRAGMENT_HEADER_BITS: usize = 64;
 pub(crate) const CONSERVATIVE_CHANNEL_HEADER_BITS: usize = 32;
 pub(crate) const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
 
