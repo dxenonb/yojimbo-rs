@@ -3,7 +3,7 @@ use std::io::{self, Cursor};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::{
-    config::{ChannelConfig, ConnectionConfig},
+    config::{ChannelType, ConnectionConfig},
     message::NetworkMessage,
 };
 
@@ -12,7 +12,20 @@ use crate::{
 /// Defines how the channel index is serialized to packets.
 pub(crate) struct ChannelPacketData<M> {
     pub(crate) channel_index: usize,
-    pub(crate) messages: Vec<M>,
+    /// List of `(message_id, and message)`
+    ///
+    /// `message_id` for unreliable channels is simply the packet sequence
+    /// number the message was sent in. For reliable channels, `message_id`
+    /// increments for each message sent on that channel.
+    ///
+    /// On deserialize, for unreliable channels `message_id` will be set to 0;
+    /// `Processor::process_packet_data` is responsible for setting the correct ID.
+    ///
+    /// On deserialize, for reliable channels `message_id` is decoded from the
+    /// stream.
+    ///
+    /// Bear in mind that the message ID will wrap at the bounds of u16.
+    pub(crate) messages: Vec<(u16, M)>,
 }
 
 impl<M: NetworkMessage> ChannelPacketData<M> {
@@ -23,13 +36,27 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
     ) -> Result<(), M::Error> {
         dest.write_u16::<LittleEndian>(self.channel_index.try_into().unwrap())
             .unwrap();
+        let config = &config.channels[self.channel_index];
 
         // TODO: block messages
 
-        // TODO: serialize reliable messages
+        let has_messages = self.messages.len() > 0;
 
-        let config = &config.channels[self.channel_index];
-        self.serialize_unordered(config, dest)?;
+        dest.write_u8(if has_messages { 1 } else { 0 }).unwrap();
+
+        if !has_messages {
+            return Ok(());
+        }
+
+        debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize,);
+        dest.write_u8((self.messages.len() - 1).try_into().unwrap())
+            .unwrap();
+
+        match config.kind {
+            ChannelType::UnreliableUnordered => self.serialize_unordered(dest)?,
+            ChannelType::ReliableOrdered => self.serialize_ordered(dest)?,
+        }
+
         Ok(())
     }
 
@@ -37,14 +64,32 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
         config: &ConnectionConfig,
         src: &mut Cursor<&[u8]>,
     ) -> Result<ChannelPacketData<M>, M::Error> {
-        let channel_index = src.read_u16::<LittleEndian>().unwrap() as _;
+        let channel_index = src.read_u16::<LittleEndian>().unwrap() as usize;
+        let config = &config.channels[channel_index];
 
         // TODO: block messages
 
-        // TODO: deserialize reliable messages
+        let has_messages = src.read_u8().unwrap() == 1;
 
-        let config = &config.channels[channel_index];
-        let messages = ChannelPacketData::deserialize_unordered(config, src).unwrap();
+        if !has_messages {
+            return Ok(ChannelPacketData::empty());
+        }
+
+        let message_count = 1 + src.read_u8().unwrap() as usize;
+
+        debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize);
+        assert!(message_count < config.max_messages_per_packet);
+
+        let mut messages = Vec::with_capacity(message_count);
+
+        match config.kind {
+            ChannelType::UnreliableUnordered => {
+                ChannelPacketData::deserialize_unordered(src, message_count, &mut messages)?
+            }
+            ChannelType::ReliableOrdered => {
+                ChannelPacketData::deserialize_ordered(src, message_count, &mut messages)?
+            }
+        }
 
         Ok(ChannelPacketData {
             channel_index,
@@ -54,67 +99,108 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
 
     pub(crate) fn serialize_unordered(
         &self,
-        config: &ChannelConfig,
         mut writer: &mut Cursor<&mut [u8]>,
     ) -> Result<(), M::Error> {
-        let has_messages = self.messages.len() > 0;
-
-        writer.write_u8(if has_messages { 1 } else { 0 }).unwrap();
-
-        if !has_messages {
-            return Ok(());
-        }
-
-        debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize,);
-        writer
-            .write_u8((self.messages.len() - 1).try_into().unwrap())
-            .unwrap();
-
-        for message in &self.messages {
+        for (_, message) in &self.messages {
             message.serialize(&mut writer)?;
 
-            #[cfg(feature = "serialize_check")]
-            {
-                writer
-                    .write_u32::<LittleEndian>(SERIALIZE_CHECK_VALUE)
-                    .expect("failed to write check value");
-            }
+            Self::serialize_check(writer);
         }
 
         Ok(())
     }
 
     pub(crate) fn deserialize_unordered(
-        config: &ChannelConfig,
         mut reader: &mut Cursor<&[u8]>,
-    ) -> Result<Vec<M>, M::Error> {
-        let has_messages = reader.read_u8().unwrap() == 1;
-
-        if !has_messages {
-            return Ok(Vec::new());
-        }
-
-        debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize);
-        let message_count = 1 + reader.read_u8().unwrap() as usize;
-        let mut messages = Vec::with_capacity(message_count);
-
+        message_count: usize,
+        messages: &mut Vec<(u16, M)>,
+    ) -> Result<(), M::Error> {
         for _ in 0..message_count {
-            messages.push(M::deserialize(&mut reader)?);
+            // the ID is actually decided in `Processor::process_packet_data` - set 0 for now
+            messages.push((0, M::deserialize(&mut reader)?));
 
-            #[cfg(feature = "serialize_check")]
-            {
-                let check_value = reader
-                    .read_u32::<LittleEndian>()
-                    .expect("expected check value, found end of stream");
-                assert_eq!(
-                    check_value, SERIALIZE_CHECK_VALUE,
-                    "expected check value {} but found {}",
-                    SERIALIZE_CHECK_VALUE, check_value
-                );
-            }
+            Self::deserialize_check(reader);
         }
 
-        Ok(messages)
+        Ok(())
+    }
+
+    pub(crate) fn serialize_ordered(
+        &self,
+        mut writer: &mut Cursor<&mut [u8]>,
+    ) -> Result<(), M::Error> {
+        /*
+           this order (IDs list followed by messages list) is taken from
+           yojimbo (which serializes IDs relative to previous ID for
+           compression)
+        */
+
+        // write the message IDs
+        for (id, _) in &self.messages {
+            // TODO: serialize sequence relative
+            writer.write_u16::<LittleEndian>(*id).unwrap();
+        }
+
+        Self::serialize_check(writer);
+
+        // write the message contents
+        for (_, message) in &self.messages {
+            message.serialize(&mut writer)?;
+
+            Self::serialize_check(writer);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn deserialize_ordered(
+        mut reader: &mut Cursor<&[u8]>,
+        message_count: usize,
+        messages: &mut Vec<(u16, M)>,
+    ) -> Result<(), M::Error> {
+        // read the message IDs
+        let mut message_ids = Vec::with_capacity(message_count);
+        for _ in 0..message_count {
+            let id = reader.read_u16::<LittleEndian>().unwrap();
+            message_ids.push(id);
+        }
+
+        Self::deserialize_check(reader);
+
+        // read the messages
+        for i in 0..message_count {
+            let message = M::deserialize(&mut reader)?;
+            messages.push((message_ids[i], message));
+
+            Self::deserialize_check(reader);
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn deserialize_check(_reader: &mut Cursor<&[u8]>) {
+        #[cfg(feature = "serialize_check")]
+        {
+            let check_value = _reader
+                .read_u32::<LittleEndian>()
+                .expect("expected check value, found end of stream");
+            assert_eq!(
+                check_value, SERIALIZE_CHECK_VALUE,
+                "expected check value {} but found {}",
+                SERIALIZE_CHECK_VALUE, check_value
+            );
+        }
+    }
+
+    #[inline]
+    fn serialize_check(_writer: &mut Cursor<&mut [u8]>) {
+        #[cfg(feature = "serialize_check")]
+        {
+            _writer
+                .write_u32::<LittleEndian>(SERIALIZE_CHECK_VALUE)
+                .expect("failed to write check value");
+        }
     }
 
     pub(crate) fn empty() -> ChannelPacketData<M> {
