@@ -14,16 +14,18 @@ MVP tasks:
  - [x] Impl unreliable channels
  - [ ] Impl reliable channels
  - [x] Impl message serialization
- - [ ] Add CI/CD
+ - [x] Add CI/CD
  - [ ] Add Automated Tests
  - [ ] Update dependencies (netcode, reliable, and libsodium)
+ - [ ] Expose message IDs (either via set/get on Network Message or receive_message_with_id)
  - [ ] Review unsafe code (some unsafe blocks are a bit cavalier, and unsafety may be exposed in safe APIs)
  - [ ] Review error handling and use Option/Result (need to resolve some panics still)
+ - [ ] Impl bit packer
  - [ ] Impl client Matcher service
 
 Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C++ API as close as possible, with some ommissions:
 
- - There is serialization framework included in this library (you're probably going to use serde)
+ - There is no serialization framework included in this library (you're probably going to use serde)
  - There is no bit packer (for now)
  - There is no API for specifying any allocators (yet)
  - The Matcher is not ported yet, so there is no included way to securely get a private key/connect token to your client out-of-the-box.
@@ -33,7 +35,6 @@ Currently this is more or less a 1-1 port of `yojimbo` to Rust, following the C+
 Additional tasks in the backlog:
 
  - consider a more RAII oriented API, refactor for Rust
- - reconsider how channels are handled
  - review some other C-like things that feel odd in Rust
  - fix https://github.com/networkprotocol/yojimbo/issues/170
  - implement an example Matchmaking backend
