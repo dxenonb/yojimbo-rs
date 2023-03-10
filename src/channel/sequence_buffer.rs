@@ -53,26 +53,6 @@ impl<T> SequenceBuffer<T> {
         self.sequence
     }
 
-    /// Insert an entry in the sequence buffer.
-    ///
-    /// IMPORTANT: If another entry exists at the sequence modulo buffer size, it is overwritten.
-    ///
-    /// Returns None if the insert was successful, or `Some(entry)` if the entry could not be added.
-    /// This happens when the sequence number is too old.
-    #[must_use]
-    pub(crate) fn insert(&mut self, sequence: u16, entry: T) -> Option<T> {
-        if sequence_greater_than(sequence + 1, self.sequence) {
-            self.remove_entries(self.sequence, sequence);
-            self.sequence = sequence + 1;
-        } else if sequence_less_than(sequence, self.sequence.wrapping_sub(self.capacity() as u16)) {
-            return Some(entry);
-        }
-        let index = self.sequence_index(sequence);
-        self.entry_sequence[index] = Some(sequence);
-        self.entries[index] = Some(entry);
-        None
-    }
-
     /// Insert an entry into the sequence buffer.
     ///
     /// IMPORTANT: If another entry exists at `sequence` % buffer size,
