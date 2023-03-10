@@ -14,7 +14,7 @@ use super::{
 /// This channel type is best used for time critical data like snapshots and object state.
 pub(crate) struct Unreliable<M = ()> {
     message_send_queue: VecDeque<M>,
-    message_receive_queue: VecDeque<M>,
+    message_receive_queue: VecDeque<(u16, M)>,
 }
 
 impl<M> Unreliable<M> {
@@ -54,7 +54,7 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
         self.message_send_queue.push_back(message)
     }
 
-    fn receive_message(&mut self) -> Option<M> {
+    fn receive_message(&mut self) -> Option<(u16, M)> {
         self.message_receive_queue.pop_front()
     }
 
@@ -62,7 +62,7 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
         &mut self,
         config: &ChannelConfig,
         channel_index: usize,
-        _packet_sequence: u16,
+        packet_sequence: u16,
         mut available_bits: usize,
     ) -> (ChannelPacketData<M>, usize) {
         if self.message_send_queue.is_empty() {
@@ -109,7 +109,7 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
 
             assert!(used_bits <= available_bits);
 
-            messages.push(message);
+            messages.push((packet_sequence, message));
         }
 
         if messages.is_empty() {
@@ -124,11 +124,12 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
         (packet_data, used_bits)
     }
 
-    fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, _packet_sequence: u16) {
-        for message in packet_data.messages {
-            // TODO: set packet_sequence on Message
+    fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, packet_sequence: u16) {
+        for (_, message) in packet_data.messages {
             if self.message_receive_queue.len() < self.message_receive_queue.capacity() {
-                self.message_receive_queue.push_back(message);
+                // the packet_sequence overrides any ID that may have been set
+                self.message_receive_queue
+                    .push_back((packet_sequence, message));
             }
         }
     }

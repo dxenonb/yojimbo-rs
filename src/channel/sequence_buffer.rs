@@ -164,6 +164,6 @@ pub(crate) fn sequence_greater_than(s1: u16, s2: u16) -> bool {
 /// If the two sequence numbers are close together, it is as normal, but they are far apart, it is assumed that they have wrapped around.
 /// Thus, sequence_less_than( 0, 1 ) returns true, and so does sequence_less_than( 65535, 0 )!
 #[inline(always)]
-fn sequence_less_than(s1: u16, s2: u16) -> bool {
+pub(crate) fn sequence_less_than(s1: u16, s2: u16) -> bool {
     sequence_greater_than(s2, s1)
 }

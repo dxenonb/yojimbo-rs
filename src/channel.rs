@@ -48,9 +48,6 @@ pub struct Channel<M> {
 
 impl<M: NetworkMessage> Channel<M> {
     pub(crate) fn new(config: ChannelConfig, channel_index: usize, time: f64) -> Channel<M> {
-        if !matches!(config.kind, ChannelType::UnreliableUnordered) {
-            unimplemented!("reliable ordered channels not implemented");
-        }
         let processor: Box<dyn Processor<M>> = match config.kind {
             ChannelType::ReliableOrdered => Box::new(Reliable::new(config, time)),
             ChannelType::UnreliableUnordered => Box::new(Unreliable::new(&config)),
@@ -148,7 +145,7 @@ impl<M: NetworkMessage> Channel<M> {
             return None;
         }
 
-        let result = self.processor.receive_message()?;
+        let (_, result) = self.processor.receive_message()?;
 
         self.counters.received += 1;
 

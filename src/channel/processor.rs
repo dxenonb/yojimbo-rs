@@ -8,7 +8,7 @@ pub(crate) trait Processor<M> {
     fn can_send_message(&self) -> bool;
     fn has_messages_to_send(&self) -> bool;
     fn send_message(&mut self, message: M);
-    fn receive_message(&mut self) -> Option<M>;
+    fn receive_message(&mut self) -> Option<(u16, M)>;
     fn packet_data(
         &mut self,
         config: &ChannelConfig,

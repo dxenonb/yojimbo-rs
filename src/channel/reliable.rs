@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     processor::Processor,
-    sequence_buffer::{sequence_greater_than, SequenceBuffer},
+    sequence_buffer::{sequence_greater_than, sequence_less_than, SequenceBuffer},
     ChannelPacketData,
 };
 
@@ -161,7 +161,7 @@ impl<M: NetworkMessage> Reliable<M> {
 
         for id in message_ids {
             let message = self.message_send_queue.get(*id).unwrap().message.clone();
-            messages.push(message);
+            messages.push((*id, message));
         }
 
         let packet_data = ChannelPacketData {
@@ -246,7 +246,7 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
         self.send_message_id = self.send_message_id.wrapping_add(1);
     }
 
-    fn receive_message(&mut self) -> Option<M> {
+    fn receive_message(&mut self) -> Option<(u16, M)> {
         let entry = match self.message_receive_queue.take(self.receive_message_id) {
             Some(entry) => entry,
             None => return None,
@@ -255,7 +255,7 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
 
         self.receive_message_id = self.receive_message_id.wrapping_add(1);
 
-        Some(entry.message)
+        Some((entry.message_id, entry.message))
     }
 
     fn packet_data(
@@ -282,12 +282,34 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
         }
     }
 
-    fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, packet_sequence: u16) {
+    fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, _packet_sequence: u16) {
         // TODO: blocks
         {
+            let min_message_id = self.receive_message_id;
+            let max_message_id = self
+                .receive_message_id
+                .wrapping_add((self.message_receive_queue.capacity() - 1) as u16);
+
             /* yojimbo ReliableOrderedChannel::ProcessPacketMessages */
-            for message in packet_data.messages {
-                unimplemented!("TODO: really need to get the ID now")
+            for (id, message) in packet_data.messages {
+                if sequence_less_than(id, min_message_id) {
+                    continue;
+                }
+                if sequence_greater_than(id, max_message_id) {
+                    // Did you forget to dequeue messages on the receiver?
+                    panic!("TODO: return a desync error");
+                }
+
+                let result =
+                    self.message_receive_queue
+                        .insert_with(id, || MessageReceiveQueueEntry {
+                            message_id: id,
+                            message,
+                        });
+
+                if !result {
+                    panic!("TODO: return a desync error");
+                }
             }
         }
     }
