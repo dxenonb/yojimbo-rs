@@ -43,6 +43,16 @@ impl<T> SequenceBuffer<T> {
         // no need to reset the actua entries
     }
 
+    /// The "current" sequence number, which advances when entries are added.
+    ///
+    /// This sequence number can wrap around, so if you are at 65535 and add
+    /// an entry sequence 65535, then 0 becomes the new "current" sequence number.
+    ///
+    /// See `sequence_greater_than` and `sequence_less_than`.
+    pub(crate) fn sequence_pointer(&self) -> u16 {
+        self.sequence
+    }
+
     /// Insert an entry in the sequence buffer.
     ///
     /// IMPORTANT: If another entry exists at the sequence modulo buffer size, it is overwritten.
@@ -164,7 +174,7 @@ impl<T> SequenceBuffer<T> {
 /// If the two sequence numbers are close together, it is as normal, but they are far apart, it is assumed that they have wrapped around.
 /// Thus, sequence_greater_than( 1, 0 ) returns true, and so does sequence_greater_than( 0, 65535 )!
 #[inline(always)]
-fn sequence_greater_than(s1: u16, s2: u16) -> bool {
+pub(crate) fn sequence_greater_than(s1: u16, s2: u16) -> bool {
     ((s1 > s2) && (s1 - s2 <= 32768)) || ((s1 < s2) && (s2 - s1 > 32768))
 }
 

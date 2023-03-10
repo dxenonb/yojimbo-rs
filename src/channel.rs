@@ -112,8 +112,8 @@ impl<M: NetworkMessage> Channel<M> {
             .process_packet_data(packet_data, packet_sequence);
     }
 
-    pub(crate) fn process_ack(&mut self, _packet_sequence: u16) {
-        // TODO: implement (only needed for reliable)
+    pub(crate) fn process_ack(&mut self, packet_sequence: u16) {
+        self.processor.process_ack(packet_sequence)
     }
 
     pub(crate) fn error_level(&self) -> ChannelErrorLevel {

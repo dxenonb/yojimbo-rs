@@ -20,7 +20,11 @@ use crate::{
     message::NetworkMessage,
 };
 
-use super::{processor::Processor, sequence_buffer::SequenceBuffer, ChannelPacketData};
+use super::{
+    processor::Processor,
+    sequence_buffer::{sequence_greater_than, SequenceBuffer},
+    ChannelPacketData,
+};
 
 pub(crate) struct Reliable<M> {
     time: f64,
@@ -28,6 +32,9 @@ pub(crate) struct Reliable<M> {
 
     send_message_id: u16,
     receive_message_id: u16,
+    /// Represents the next message we need to send (by ID).
+    ///
+    /// Call `update_oldest_unacked_message_id` after messages are acked.
     oldest_unacked_message_id: u16,
 
     /// List of message ids per sent connection packet.
@@ -143,6 +150,8 @@ impl<M: NetworkMessage> Reliable<M> {
         (message_ids, used_bits)
     }
 
+    /// Generate ChannelPacketData by copying all messages in the send queue
+    /// with an ID in `message_ids`.
     fn get_message_packet_data(
         &mut self,
         channel_index: usize,
@@ -163,6 +172,7 @@ impl<M: NetworkMessage> Reliable<M> {
         packet_data
     }
 
+    /// Add an entry for this sequence number to `sent_packets`.
     fn add_message_packet_entry(&mut self, message_ids: &[u16], packet_sequence: u16) {
         let message_ids_index = ((packet_sequence as usize) % self.config.sent_packet_buffer_size)
             * self.config.max_messages_per_packet;
@@ -199,10 +209,13 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
         // TODO: blocks
     }
 
+    /// There are messages to send if oldest_unacked_message_id is "less than"
+    /// send_message_id (considering that the ID wraps).
     fn has_messages_to_send(&self) -> bool {
         self.oldest_unacked_message_id != self.send_message_id
     }
 
+    /// New messags can be sent if there is space in the send queue.
     fn can_send_message(&self) -> bool {
         self.message_send_queue.available(self.send_message_id)
     }
@@ -230,7 +243,7 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
 
         assert!(result, "can_send_message should make this impossible");
 
-        self.send_message_id += 1;
+        self.send_message_id = self.send_message_id.wrapping_add(1);
     }
 
     fn receive_message(&mut self) -> Option<M> {
@@ -240,14 +253,14 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
         };
         assert_eq!(entry.message_id, self.receive_message_id);
 
-        self.receive_message_id += 1;
+        self.receive_message_id = self.receive_message_id.wrapping_add(1);
 
         Some(entry.message)
     }
 
     fn packet_data(
         &mut self,
-        config: &ChannelConfig,
+        _config: &ChannelConfig,
         channel_index: usize,
         packet_sequence: u16,
         available_bits: usize,
@@ -258,7 +271,6 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
 
         // TODO: blocks
 
-        let num_message_id = 0;
         let (message_ids, message_bits) = self.get_messages_to_send(available_bits);
 
         if message_ids.len() > 0 {
@@ -278,6 +290,34 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
                 unimplemented!("TODO: really need to get the ID now")
             }
         }
+    }
+
+    fn process_ack(&mut self, ack: u16) {
+        // figure out which packet was acked (return if this ack appears to be too old)
+        let Some(entry) = self.sent_packets.get(ack) else { return; };
+
+        // TODO: acked is never set to true in yojimbo, as far as I can tell - remove field?
+        assert!(!entry.acked);
+
+        // remove all the acked messages from the send queue
+        let (first_message, message_count) = entry.message_ids;
+        let last_message = first_message + message_count;
+
+        for message_id in &mut self.sent_packet_message_ids[first_message..last_message] {
+            let mut take_success = false;
+            if let Some(entry) = self.message_send_queue.take(*message_id) {
+                assert_eq!(entry.message_id, *message_id);
+                take_success = true;
+            } // else: this message was probably acked in another packet
+            if take_success {
+                self.oldest_unacked_message_id = update_oldest_unacked_message_id(
+                    self.oldest_unacked_message_id,
+                    &self.message_send_queue,
+                );
+            }
+        }
+
+        // TODO: blocks
     }
 }
 
@@ -300,6 +340,32 @@ struct SentPacketEntry {
     message_ids: (usize, usize),
     /// True if this packet has been acked
     acked: bool,
+}
+
+/// Advance `oldest_unacked_message_id` until it references
+/// something still in the send queue or refers to the next message ID we
+/// should use.
+///
+/// `oldest_unacked_message_id` should be the current (possibly stale)
+/// value. Returns the updated value.
+fn update_oldest_unacked_message_id<M>(
+    mut oldest_unacked_message_id: u16,
+    message_send_queue: &SequenceBuffer<MessageSendQueueEntry<M>>,
+) -> u16 {
+    let stop_message_id = message_send_queue.sequence_pointer();
+    loop {
+        if oldest_unacked_message_id == stop_message_id
+            || message_send_queue.exists(oldest_unacked_message_id)
+        {
+            break;
+        }
+        oldest_unacked_message_id = oldest_unacked_message_id.wrapping_add(1);
+    }
+    assert!(!sequence_greater_than(
+        oldest_unacked_message_id,
+        stop_message_id
+    ));
+    oldest_unacked_message_id
 }
 
 // TODO: fix https://github.com/networkprotocol/yojimbo/issues/138

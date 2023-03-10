@@ -17,6 +17,5 @@ pub(crate) trait Processor<M> {
         available_bits: usize,
     ) -> (ChannelPacketData<M>, usize);
     fn process_packet_data(&mut self, packet_data: ChannelPacketData<M>, packet_sequence: u16);
-
-    // process_ack(&mut self, ack: u16);
+    fn process_ack(&mut self, ack: u16);
 }

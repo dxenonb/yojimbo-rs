@@ -132,4 +132,8 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
             }
         }
     }
+
+    fn process_ack(&mut self, _ack: u16) {
+        /* no-op for unreliable channels */
+    }
 }
