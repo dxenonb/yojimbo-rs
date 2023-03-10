@@ -49,6 +49,7 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
         }
 
         debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize,);
+        assert!(self.messages.len() <= config.max_messages_per_packet);
         dest.write_u8((self.messages.len() - 1).try_into().unwrap())
             .unwrap();
 
@@ -78,7 +79,7 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
         let message_count = 1 + src.read_u8().unwrap() as usize;
 
         debug_assert!(config.max_messages_per_packet - 1 <= u8::MAX as usize);
-        assert!(message_count < config.max_messages_per_packet);
+        assert!(message_count <= config.max_messages_per_packet);
 
         let mut messages = Vec::with_capacity(message_count);
 

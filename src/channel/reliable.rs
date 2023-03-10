@@ -142,7 +142,7 @@ impl<M: NetworkMessage> Reliable<M> {
                 entry.time_last_sent = self.time;
             }
 
-            if message_ids.len() > self.config.max_messages_per_packet {
+            if message_ids.len() >= self.config.max_messages_per_packet {
                 break;
             }
         }
