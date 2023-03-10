@@ -7,6 +7,8 @@ use crate::{
     message::NetworkMessage,
 };
 
+use super::SERIALIZE_CHECK_VALUE;
+
 /// Contains a series of messages sent on `channel_index`.
 ///
 /// Defines how the channel index is serialized to packets.
