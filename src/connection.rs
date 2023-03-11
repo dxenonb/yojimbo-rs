@@ -307,6 +307,7 @@ mod test {
                 &mut sender_sequence,
                 &mut receiver_sequence,
                 delta_time,
+                0.0,
             );
 
             loop {
@@ -328,8 +329,157 @@ mod test {
         );
     }
 
-    // #[test]
-    // fn test_send_receive_reliable() {}
+    #[test]
+    fn test_send_receive_reliable_messages() {
+        let mut time = 100.0;
+        let delta_time = 0.016;
+
+        let config = ClientServerConfig::new(1);
+        let mut config = config.connection;
+        let messages_per_packet = 8;
+        config.channels[0].max_messages_per_packet = messages_per_packet;
+        config.channels[0].sent_packet_buffer_size = 16; // severely constrain this
+        config.channels[0].kind = ChannelType::ReliableOrdered;
+
+        let mut sender = Connection::new(config.clone(), time);
+        let mut receiver = Connection::new(config.clone(), time);
+
+        let mut sender_sequence = 0;
+        let mut receiver_sequence = 0;
+
+        let messages_sent = 1024;
+        assert!(messages_sent <= config.channels[0].message_send_queue_size);
+        for i in 0..messages_sent {
+            let message = TestMessage { value: i as u64 };
+            sender.send_message(0, message);
+        }
+
+        let mut expect_value = 0;
+        let mut iter = 0;
+        let max_iter = 15 * messages_sent / messages_per_packet;
+        loop {
+            pump_connection_update(
+                &config,
+                &mut time,
+                &mut sender,
+                &mut receiver,
+                &mut sender_sequence,
+                &mut receiver_sequence,
+                delta_time,
+                0.90,
+            );
+
+            loop {
+                let Some(message) = receiver.receive_message(0) else { break };
+                assert_eq!(
+                    message.value, expect_value,
+                    "actual message value {}, expected {}; iter: {}",
+                    message.value, expect_value, iter
+                );
+                expect_value += 1;
+            }
+
+            if receiver.channel_counters(0).received >= messages_sent {
+                break;
+            }
+
+            if iter > max_iter {
+                panic!("exceeded maximum iterations allowed: {}", iter);
+            }
+
+            iter += 1;
+        }
+
+        assert_eq!(
+            receiver.channel_counters(0).received,
+            messages_sent as usize,
+            "left==recieved; right==sent; iterations: {}",
+            iter
+        );
+    }
+
+    #[test]
+    fn test_send_receive_reliable_messages_multiple_channels() {
+        let mut time = 100.0;
+        let delta_time = 0.016;
+
+        let config = ClientServerConfig::new(2);
+        let mut config = config.connection;
+        let messages_per_packet = 8;
+        for i in 0..2 {
+            config.channels[i].max_messages_per_packet = messages_per_packet;
+            config.channels[i].sent_packet_buffer_size = 16; // severely constrain this
+            config.channels[i].kind = ChannelType::ReliableOrdered;
+        }
+
+        let mut sender = Connection::new(config.clone(), time);
+        let mut receiver = Connection::new(config.clone(), time);
+
+        let mut sender_sequence = 0;
+        let mut receiver_sequence = 0;
+
+        let channel_0_messages = 1024;
+        let channel_1_messages = 400;
+
+        for i in 0..channel_0_messages {
+            let message = TestMessage { value: i as u64 };
+            sender.send_message(0, message);
+        }
+        for i in 0..channel_1_messages {
+            let message = TestMessage {
+                value: 3 * i as u64,
+            };
+            sender.send_message(1, message);
+        }
+
+        let mut iter = 0;
+        let max_iter = 20 * (channel_0_messages + channel_1_messages) / (2 * messages_per_packet);
+        loop {
+            pump_connection_update(
+                &config,
+                &mut time,
+                &mut sender,
+                &mut receiver,
+                &mut sender_sequence,
+                &mut receiver_sequence,
+                delta_time,
+                0.90,
+            );
+
+            loop {
+                let Some(_) = receiver.receive_message(0) else { break };
+            }
+
+            loop {
+                let Some(_) = receiver.receive_message(1) else { break };
+            }
+
+            if receiver.channel_counters(0).received >= channel_0_messages
+                && receiver.channel_counters(1).received >= channel_1_messages
+            {
+                break;
+            }
+
+            if iter > max_iter {
+                panic!("exceeded maximum iterations allowed: {}", iter);
+            }
+
+            iter += 1;
+        }
+
+        assert_eq!(
+            receiver.channel_counters(0).received,
+            channel_0_messages,
+            "left==recieved; right==sent; iterations: {}",
+            iter
+        );
+        assert_eq!(
+            receiver.channel_counters(1).received,
+            channel_1_messages,
+            "left==recieved; right==sent; iterations: {}",
+            iter
+        );
+    }
 
     fn pump_connection_update(
         config: &ConnectionConfig,
@@ -339,24 +489,27 @@ mod test {
         sender_sequence: &mut u16,
         receiver_sequence: &mut u16,
         delta_time: f64,
+        packet_loss: f32,
     ) {
-        // TODO: packet loss percentage
-
         let mut packet = vec![0u8; config.max_packet_size];
 
         let mut bytes_written = sender.generate_packet(*sender_sequence, &mut packet[..]);
         if bytes_written > 0 {
-            unsafe {
-                receiver.process_packet(*sender_sequence, packet.as_ptr(), bytes_written);
-                sender.process_acks(sender_sequence, 1);
+            if rand::random::<f32>() > packet_loss {
+                unsafe {
+                    receiver.process_packet(*sender_sequence, packet.as_ptr(), bytes_written);
+                    sender.process_acks(sender_sequence, 1);
+                }
             }
         }
 
         bytes_written = receiver.generate_packet(*receiver_sequence, &mut packet[..]);
         if bytes_written > 0 {
-            unsafe {
-                sender.process_packet(*receiver_sequence, packet.as_ptr(), bytes_written);
-                receiver.process_acks(receiver_sequence, 1);
+            if rand::random::<f32>() > packet_loss {
+                unsafe {
+                    sender.process_packet(*receiver_sequence, packet.as_ptr(), bytes_written);
+                    receiver.process_acks(receiver_sequence, 1);
+                }
             }
         }
 

@@ -12,6 +12,7 @@ serialize_check = []
 [dependencies]
 log = "0.4.17"
 byteorder = "1.4.3"
+rand = "0.8.5"
 
 [build-dependencies]
 bindgen = "0.63.0"
