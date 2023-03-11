@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, mem::size_of};
+use std::collections::VecDeque;
 
 use crate::{
     channel::channel_packet_data::MeasureSink,
@@ -21,8 +21,8 @@ impl<M> Unreliable<M> {
     pub(crate) fn new(config: &ChannelConfig) -> Unreliable<M> {
         debug_assert_eq!(config.kind, ChannelType::UnreliableUnordered);
 
-        let send_capacity = std::cmp::max(config.message_send_queue_size / size_of::<M>(), 1);
-        let receive_capacity = std::cmp::max(config.message_receive_queue_size / size_of::<M>(), 1);
+        let send_capacity = config.message_send_queue_size;
+        let receive_capacity = config.message_receive_queue_size;
 
         Unreliable {
             message_send_queue: VecDeque::with_capacity(send_capacity),
@@ -82,11 +82,6 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
         let mut messages = Vec::new();
 
         loop {
-            let message = match self.message_send_queue.pop_front() {
-                Some(message) => message,
-                None => break,
-            };
-
             if available_bits.saturating_sub(used_bits) < give_up_bits {
                 break;
             }
@@ -94,6 +89,11 @@ impl<M: NetworkMessage> Processor<M> for Unreliable<M> {
             if messages.len() == config.max_messages_per_packet {
                 break;
             }
+
+            let message = match self.message_send_queue.pop_front() {
+                Some(message) => message,
+                None => break,
+            };
 
             // TODO: block message
 
