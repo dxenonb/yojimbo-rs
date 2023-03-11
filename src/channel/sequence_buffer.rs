@@ -61,9 +61,10 @@ impl<T> SequenceBuffer<T> {
     /// Returns true if the insert was successful, or false if the entry could
     /// not be added. This happens when the sequence number is too old.
     pub(crate) fn insert_with<F: FnOnce() -> T>(&mut self, sequence: u16, f: F) -> bool {
-        if sequence_greater_than(sequence + 1, self.sequence) {
+        let next_sequence = sequence.wrapping_add(1);
+        if sequence_greater_than(next_sequence, self.sequence) {
             self.remove_entries(self.sequence, sequence);
-            self.sequence = sequence + 1;
+            self.sequence = next_sequence;
         } else if sequence_less_than(sequence, self.sequence.wrapping_sub(self.capacity() as u16)) {
             return false;
         }
@@ -80,6 +81,7 @@ impl<T> SequenceBuffer<T> {
     pub(crate) fn take(&mut self, sequence: u16) -> Option<T> {
         if self.exists(sequence) {
             let index = self.sequence_index(sequence);
+            self.entry_sequence[index] = None;
             self.entries[index].take()
         } else {
             None
@@ -122,6 +124,14 @@ impl<T> SequenceBuffer<T> {
         self.entries.len()
     }
 
+    /// Remove entries between start_sequence and end_sequence
+    ///
+    /// Note from yojimbo:
+    ///
+    /// > This is used to remove old entries as we advance the sequence buffer forward.
+    /// > Otherwise, if when entries are added with holes (eg. receive buffer for packets or messages, where not all sequence numbers are added to the buffer because we have high packet loss),
+    /// > and we are extremely unlucky, we can have old sequence buffer entries from the previous sequence # wrap around still in the buffer, which corrupts our internal connection state.
+    /// > This actually happened in the soak test at high packet loss levels (>90%). It took me days to track it down :)
     fn remove_entries(&mut self, start_sequence: u16, end_sequence: u16) {
         let start_sequence = start_sequence as usize;
         let mut end_sequence = end_sequence as usize;
@@ -208,6 +218,106 @@ mod test {
             assert!(sequence_greater_than(right, x));
             assert!(sequence_greater_than(x, left));
             assert!(sequence_greater_than(right, left));
+        }
+    }
+
+    #[test]
+    fn test_sequence_buffer() {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        struct SeqData {
+            seq: u16,
+            value: usize,
+        }
+
+        let size = 256;
+
+        let mut buffer = SequenceBuffer::new(size);
+
+        for i in 0..(5 * size) as u16 {
+            // assert that the buffer is empty
+            assert!(buffer.available(i));
+            assert!(buffer.get(i).is_none());
+        }
+
+        // check that we can continuously enter values
+        let total_entries = 100_000;
+        let mut seq = 0;
+        for value in 0..total_entries {
+            let entry = SeqData { seq, value };
+
+            assert!(buffer.insert_with(seq, || entry));
+
+            // verify we cannot insert something too old
+            assert!(!buffer.insert_with(seq.wrapping_sub(size as u16), || entry));
+
+            if value == 0 {
+                // the previous entry will not exist for the first value
+                assert!(buffer.available(seq.wrapping_sub(1)));
+            } else {
+                // otherwise the previous entry will always fail to insert
+                assert!(buffer.exists(seq.wrapping_sub(1)));
+            }
+
+            assert_eq!(buffer.sequence_pointer(), seq.wrapping_add(1));
+            assert_eq!(buffer.get(seq).cloned(), Some(entry));
+
+            seq = seq.wrapping_add(1);
+        }
+
+        // check that the buffer remembers everything within range of `size`
+        assert!(total_entries > size);
+        for i in 1..size {
+            assert!(buffer.exists(seq.wrapping_sub(i as u16)), "seq: {}", i);
+        }
+        // ...and that it forgot about `seq - (size + 1)`
+        let forgotten_seq = seq.wrapping_sub((size + 1) as u16);
+        assert!(!buffer.exists(forgotten_seq));
+        assert_eq!(buffer.get(forgotten_seq), None);
+
+        assert_eq!(buffer.capacity(), size);
+
+        buffer.reset();
+        assert_eq!(buffer.sequence_pointer(), 0);
+        for i in 0..(5 * size) as u16 {
+            // assert that the buffer is empty
+            assert!(buffer.available(i));
+            assert!(buffer.get(i).is_none());
+        }
+    }
+
+    #[test]
+    fn test_sequence_buffer_take() {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        struct SeqData {
+            seq: u16,
+            value: usize,
+        }
+
+        let size = 256;
+
+        let mut buffer = SequenceBuffer::new(size);
+
+        let total_entries = 100_000;
+        let mut seq = 0;
+        for value in 0..total_entries {
+            let entry = SeqData { seq, value };
+            assert!(buffer.insert_with(seq, || entry));
+            seq = seq.wrapping_add(1);
+        }
+
+        for i in 1..=size {
+            let expect_seq = seq - (i as u16);
+            let expect_value = total_entries - i;
+            assert!(buffer.exists(expect_seq));
+            assert!(!buffer.available(expect_seq));
+            assert_eq!(
+                buffer.take(expect_seq),
+                Some(SeqData {
+                    seq: expect_seq,
+                    value: expect_value
+                })
+            );
+            assert!(buffer.available(expect_seq));
         }
     }
 }
