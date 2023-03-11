@@ -103,12 +103,6 @@ impl<T> SequenceBuffer<T> {
         }
     }
 
-    /// Remove an entry from the sequence buffer.
-    pub(crate) fn remove(&mut self, sequence: u16) {
-        let index = self.sequence_index(sequence);
-        self.entry_sequence[index] = None;
-    }
-
     /// Returns true if the sequence buffer entry is available, false if it is occupied.
     pub(crate) fn available(&self, sequence: u16) -> bool {
         self.entry_sequence[self.sequence_index(sequence)].is_none()
