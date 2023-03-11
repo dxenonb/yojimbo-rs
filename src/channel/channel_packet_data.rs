@@ -7,6 +7,7 @@ use crate::{
     message::NetworkMessage,
 };
 
+#[cfg(feature = "serialize_check")]
 use super::SERIALIZE_CHECK_VALUE;
 
 /// Contains a series of messages sent on `channel_index`.
