@@ -244,3 +244,131 @@ impl<M: NetworkMessage> ConnectionPacket<M> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::config::{ChannelType, ClientServerConfig};
+
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct TestMessage {
+        value: u64,
+    }
+
+    impl NetworkMessage for TestMessage {
+        type Error = std::io::Error;
+
+        fn serialize<W: std::io::Write>(&self, mut writer: W) -> Result<(), Self::Error> {
+            writer.write_u64::<LittleEndian>(self.value)?;
+
+            Ok(())
+        }
+
+        fn deserialize<R: std::io::Read>(mut reader: R) -> Result<Self, Self::Error> {
+            let value = reader.read_u64::<LittleEndian>()?;
+
+            Ok(TestMessage { value })
+        }
+    }
+
+    #[test]
+    fn test_send_receive_unreliable_messages() {
+        let mut time = 100.0;
+        let delta_time = 0.016;
+
+        let config = ClientServerConfig::new(1);
+        let mut config = config.connection;
+        let messages_per_packet = 8;
+        config.channels[0].max_messages_per_packet = messages_per_packet;
+        config.channels[0].kind = ChannelType::UnreliableUnordered;
+
+        let mut sender = Connection::new(config.clone(), time);
+        let mut receiver = Connection::new(config.clone(), time);
+
+        let mut sender_sequence = 0;
+        let mut receiver_sequence = 0;
+
+        let messages_sent = 1024;
+        assert!(messages_sent <= config.channels[0].message_send_queue_size);
+        for i in 0..messages_sent {
+            let message = TestMessage { value: i as u64 };
+            sender.send_message(0, message);
+        }
+
+        let expected_iterations = messages_sent / messages_per_packet;
+        let mut expect_value = 0;
+        for iter in 0..expected_iterations {
+            pump_connection_update(
+                &config,
+                &mut time,
+                &mut sender,
+                &mut receiver,
+                &mut sender_sequence,
+                &mut receiver_sequence,
+                delta_time,
+            );
+
+            loop {
+                let Some(message) = receiver.receive_message(0) else { break };
+                assert_eq!(
+                    message.value, expect_value,
+                    "actual message value {}, expected {}; iter: {}",
+                    message.value, expect_value, iter
+                );
+                expect_value += 1;
+            }
+        }
+
+        assert_eq!(
+            receiver.channel_counters(0).received,
+            messages_sent as usize,
+            "left==recieved; right==sent; expected iterations: {}",
+            expected_iterations
+        );
+    }
+
+    // #[test]
+    // fn test_send_receive_reliable() {}
+
+    fn pump_connection_update(
+        config: &ConnectionConfig,
+        time: &mut f64,
+        sender: &mut Connection<TestMessage>,
+        receiver: &mut Connection<TestMessage>,
+        sender_sequence: &mut u16,
+        receiver_sequence: &mut u16,
+        delta_time: f64,
+    ) {
+        // TODO: packet loss percentage
+
+        let mut packet = vec![0u8; config.max_packet_size];
+
+        let mut bytes_written = sender.generate_packet(*sender_sequence, &mut packet[..]);
+        if bytes_written > 0 {
+            unsafe {
+                receiver.process_packet(*sender_sequence, packet.as_ptr(), bytes_written);
+                sender.process_acks(sender_sequence, 1);
+            }
+        }
+
+        bytes_written = receiver.generate_packet(*receiver_sequence, &mut packet[..]);
+        if bytes_written > 0 {
+            unsafe {
+                sender.process_packet(*receiver_sequence, packet.as_ptr(), bytes_written);
+                receiver.process_acks(receiver_sequence, 1);
+            }
+        }
+
+        *time += delta_time;
+
+        sender.advance_time(*time);
+        receiver.advance_time(*time);
+
+        *sender_sequence = sender_sequence.wrapping_add(1);
+        *receiver_sequence = receiver_sequence.wrapping_add(1);
+
+        assert!(sender.error_level() == ConnectionErrorLevel::None);
+        assert!(receiver.error_level() == ConnectionErrorLevel::None);
+    }
+}
