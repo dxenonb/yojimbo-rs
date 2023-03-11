@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 pub const SPECIAL_MESSAGE_STRING: &str = "server got the special message";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TestMessage {
     Int(i32),
     Float(f32),
@@ -24,7 +24,7 @@ impl NetworkMessage for TestMessage {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestMessageStruct {
     pub value: String,
     pub supplmentary_value: i32,
