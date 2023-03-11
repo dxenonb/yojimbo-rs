@@ -161,3 +161,53 @@ pub(crate) fn sequence_greater_than(s1: u16, s2: u16) -> bool {
 pub(crate) fn sequence_less_than(s1: u16, s2: u16) -> bool {
     sequence_greater_than(s2, s1)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_sequence_greater_than() {
+        assert!(!sequence_greater_than(0, 1));
+        assert!(sequence_greater_than(1, 0));
+        assert!(sequence_greater_than(0, 65535));
+
+        // floor(65535 / 2) + 1 should be the largest value with respect to 0
+        assert!(!sequence_greater_than(0, 65535 / 2 + 1));
+        assert!(sequence_greater_than(0, 65535 / 2 + 2));
+    }
+
+    #[test]
+    fn test_sequence_less_than() {
+        assert!(!sequence_less_than(1, 0));
+        assert!(sequence_less_than(0, 1));
+        assert!(!sequence_less_than(0, 65535));
+
+        // floor(65535 / 2) + 1 should be the largest value with respect to 0
+        assert!(sequence_less_than(0, 65535 / 2 + 1));
+        assert!(!sequence_less_than(0, 65535 / 2 + 2));
+    }
+
+    #[test]
+    fn test_sequence_comparisons() {
+        for x in 0u16..=65535 {
+            assert!(!sequence_greater_than(x, x.wrapping_add(25)));
+            assert!(sequence_greater_than(x, x.wrapping_sub(25)));
+
+            assert!(sequence_less_than(x, x.wrapping_add(25)));
+            assert!(!sequence_less_than(x, x.wrapping_sub(25)));
+
+            // test transitivity
+            let left = x.wrapping_sub(15000);
+            let right = x.wrapping_add(15000);
+
+            assert!(sequence_less_than(left, x));
+            assert!(sequence_less_than(x, right));
+            assert!(sequence_less_than(left, right));
+
+            assert!(sequence_greater_than(right, x));
+            assert!(sequence_greater_than(x, left));
+            assert!(sequence_greater_than(right, left));
+        }
+    }
+}
