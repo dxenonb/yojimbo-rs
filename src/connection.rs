@@ -399,6 +399,95 @@ mod test {
     }
 
     #[test]
+    fn test_duplex_reliable_messages() {
+        let mut time = 100.0;
+        let delta_time = 0.016;
+
+        let config = ClientServerConfig::new(1);
+        let mut config = config.connection;
+        let messages_per_packet = 8;
+        config.channels[0].max_messages_per_packet = messages_per_packet;
+        config.channels[0].sent_packet_buffer_size = 16; // severely constrain this
+        config.channels[0].kind = ChannelType::ReliableOrdered;
+
+        let mut sender = Connection::new(config.clone(), time);
+        let mut receiver = Connection::new(config.clone(), time);
+
+        let mut sender_sequence = 0;
+        let mut receiver_sequence = 0;
+
+        let messages_sent = 1024;
+        assert!(messages_sent <= config.channels[0].message_send_queue_size);
+        for i in 0..messages_sent {
+            let message = TestMessage { value: i as u64 };
+            sender.send_message(0, message);
+            receiver.send_message(0, message);
+        }
+
+        let mut sender_expect_value = 0;
+        let mut receiver_expect_value = 0;
+        let mut iter = 0;
+        let max_iter = 15 * messages_sent / messages_per_packet;
+        loop {
+            pump_connection_update(
+                &config,
+                &mut time,
+                &mut sender,
+                &mut receiver,
+                &mut sender_sequence,
+                &mut receiver_sequence,
+                delta_time,
+                0.90,
+            );
+
+            loop {
+                let Some(message) = sender.receive_message(0) else { break };
+                assert_eq!(
+                    message.value, sender_expect_value,
+                    "actual message value {}, expected {}; iter: {}",
+                    message.value, sender_expect_value, iter
+                );
+                sender_expect_value += 1;
+            }
+
+            loop {
+                let Some(message) = receiver.receive_message(0) else { break };
+                assert_eq!(
+                    message.value, receiver_expect_value,
+                    "actual message value {}, expected {}; iter: {}",
+                    message.value, receiver_expect_value, iter
+                );
+                receiver_expect_value += 1;
+            }
+
+            if receiver.channel_counters(0).received >= messages_sent
+                && sender.channel_counters(0).received >= messages_sent
+            {
+                break;
+            }
+
+            if iter > max_iter {
+                panic!("exceeded maximum iterations allowed: {}", iter);
+            }
+
+            iter += 1;
+        }
+
+        assert_eq!(
+            receiver.channel_counters(0).received,
+            messages_sent as usize,
+            "left==recieved; right==sent; iterations: {}",
+            iter
+        );
+        assert_eq!(
+            sender.channel_counters(0).received,
+            messages_sent as usize,
+            "left==recieved; right==sent; iterations: {}",
+            iter
+        );
+    }
+
+    #[test]
     fn test_send_receive_reliable_messages_multiple_channels() {
         let mut time = 100.0;
         let delta_time = 0.016;
