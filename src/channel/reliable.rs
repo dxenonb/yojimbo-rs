@@ -315,11 +315,12 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
     }
 
     fn process_ack(&mut self, ack: u16) {
-        // figure out which packet was acked (return if this ack appears to be too old)
-        let Some(entry) = self.sent_packets.get(ack) else { return; };
+        // figure out which packet was acked
+        // (return if this ack appears to be too old/not relevant to this channel)
+        let Some(entry) = self.sent_packets.get_mut(ack) else { return; };
 
-        // TODO: acked is never set to true in yojimbo, as far as I can tell - remove field?
         assert!(!entry.acked);
+        entry.acked = true;
 
         // remove all the acked messages from the send queue
         let (first_message, message_count) = entry.message_ids;
