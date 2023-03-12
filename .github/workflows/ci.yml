@@ -31,9 +31,13 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+        features:
+          - serialize_check
+          - ''
+    env:
+      FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
     name: Builds project
     runs-on: ${{ matrix.os }}
-
     steps:
     - name: Install dependencies (ubuntu)
       if: matrix.os == 'ubuntu-latest'
@@ -46,10 +50,13 @@ jobs:
         submodules: 'recursive'
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose --features $FEATURES
 
     - name: Build docs
-      run: cargo doc --verbose
+      run: cargo doc --verbose --features $FEATURES
+
+    - name: Run tests 
+      run: cargo test --verbose --features $FEATURES
 
     - name: Build examples
-      run: cargo build --verbose --examples
+      run: cargo build --verbose --examples --features $FEATURES
