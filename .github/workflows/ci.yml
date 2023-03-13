@@ -30,7 +30,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - windows-latest
+          # - windows-latest - disable windows for now, $FEATURES var isn't working right
         features:
           - default
           - serialize_check
