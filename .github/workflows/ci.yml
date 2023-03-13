@@ -32,8 +32,8 @@ jobs:
           - ubuntu-latest
           - windows-latest
         features:
+          - default
           - serialize_check
-          - null
     env:
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
     name: Builds project
