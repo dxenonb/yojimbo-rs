@@ -1,11 +1,11 @@
 /*
  * Netcode client.c ported to Rust for testing.
  */
-use yojimbo::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 use std::mem::size_of;
 use std::sync::mpsc::channel;
 use std::thread::sleep;
 use std::time::Duration;
+use yojimbo::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 fn main() {
     unsafe {
