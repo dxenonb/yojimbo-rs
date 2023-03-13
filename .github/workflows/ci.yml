@@ -33,7 +33,7 @@ jobs:
           - windows-latest
         features:
           - serialize_check
-          - ''
+          - null
     env:
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
     name: Builds project
