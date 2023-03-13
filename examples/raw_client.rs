@@ -1,7 +1,7 @@
 /*
  * Netcode client.c ported to Rust for testing.
  */
-use rust_game_networking::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
+use yojimbo::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 use std::mem::size_of;
 use std::sync::mpsc::channel;
 use std::thread::sleep;

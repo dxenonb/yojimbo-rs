@@ -1,6 +1,6 @@
 use std::{mem::size_of, sync::mpsc::channel, thread::sleep, time::Duration};
 
-use rust_game_networking::{
+use yojimbo::{
     bindings::netcode_random_bytes, client::Client, config::ClientServerConfig, initialize,
     set_bindings_log_level, shutdown, BindingsLogLevel, PRIVATE_KEY_BYTES,
 };

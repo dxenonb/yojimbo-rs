@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use rust_game_networking::message::NetworkMessage;
 use serde::{Deserialize, Serialize};
+use yojimbo::message::NetworkMessage;
 
 pub const SPECIAL_MESSAGE_STRING: &str = "server got the special message";
 

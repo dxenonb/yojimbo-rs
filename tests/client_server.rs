@@ -1,7 +1,7 @@
 use std::{thread, time::Duration};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use rust_game_networking::{
+use yojimbo::{
     client::Client, config::ClientServerConfig, message::NetworkMessage, server::Server,
     PRIVATE_KEY_BYTES,
 };
@@ -34,7 +34,7 @@ fn client_server_messages_multiple_channels() {
     let seconds_per_segment = 12.0f64;
     let max_segment_iter = (seconds_per_segment / delta_time).ceil() as usize;
 
-    rust_game_networking::initialize().unwrap();
+    yojimbo::initialize().unwrap();
 
     let mut config = ClientServerConfig::new(2);
     let send_queue_size = 1024;
