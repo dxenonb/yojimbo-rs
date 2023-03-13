@@ -26,9 +26,32 @@ pub(crate) const CONSERVATIVE_PACKET_HEADER_BITS: usize = 16;
 pub enum ChannelErrorLevel {
     /// No error. All is well.
     None,
-    /// This channel has desynced. This means that the connection protocol has desynced and cannot recover. The client should be disconnected.
+    /// This channel has desynced. This means that the connection protocol has
+    /// desynced and cannot recover. The client should be disconnected.
+    ///
+    /// This happens mainly when you are not handling a client's messages. The
+    /// channel falls behind, and has to reject messages. The messages cannot
+    /// be dropped automatically because then you would not be guaranteed to
+    /// receive messages.
     Desync,
-    /// The user tried to send a message but the send queue was full. This will assert out in development, but in production it sets this error on the channel.
+    /// The user tried to send a message but the send queue was full.
+    ///
+    /// If you get this, you're generally sending messages too fast, or
+    /// specifically in the case of reliable channels, not getting responses to
+    /// any of your messages.
+    ///
+    /// If you're sending messages too fast, try increasing the send queue size
+    /// or throttle your `send_message` calls.
+    ///
+    /// If your (reliable) messages don't need replies, the reciever still
+    /// needs to send something in order for you to receive any acks. (Acks are
+    /// required in order for a reliable channel to dequeue messages.)
+    ///
+    /// As long as the reciever sends something on *any channel* (within enough
+    /// time to prevent your send queue overflowing), that is enough for the
+    /// ack to be processed (acks are per packet, and packets contain
+    /// information for all channels) and remove some messages from the send
+    /// queue.
     SendQueueFull,
     /// The channel received a packet containing data for blocks, but this channel is configured to disable blocks. See ChannelConfig::disableBlocks.
     BlocksDisabled,
