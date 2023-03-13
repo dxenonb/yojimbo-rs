@@ -35,7 +35,7 @@ jobs:
           - default
           - serialize_check
     env:
-      FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
+      FEATURES: ${{ format(',{0}', matrix.features ) }}
     name: Builds project
     runs-on: ${{ matrix.os }}
     steps:
