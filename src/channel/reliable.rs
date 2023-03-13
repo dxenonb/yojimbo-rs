@@ -297,7 +297,7 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
                 }
                 if sequence_greater_than(id, max_message_id) {
                     // Did you forget to dequeue messages on the receiver?
-                    panic!("TODO: return a desync error");
+                    panic!("TODO: return a desync error (1), recieved {} but the latest we can handle is {}; are your handling client messages?", id, max_message_id);
                 }
 
                 let result =
@@ -308,7 +308,10 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
                         });
 
                 if !result {
-                    panic!("TODO: return a desync error");
+                    // The message we got was too old; are we sending acks?
+                    // This should generally be unreachable, SendQueueFull
+                    // typically happens first.
+                    panic!("TODO: return a desync error (2), received {} but the oldest we can handle is {}", id, min_message_id);
                 }
             }
         }
