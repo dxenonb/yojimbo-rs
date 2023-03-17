@@ -15,10 +15,11 @@ MVP tasks:
  - [x] Impl reliable channels
  - [x] Impl message serialization
  - [x] Add CI/CD
- - [x] Add Automated Tests
- - [ ] Update dependencies (netcode, reliable, and libsodium)
+ - [x] Add Automated Tests (more are still desireable!)
+ - [x] Add network simulator
  - [ ] Expose message IDs (either via set/get on Network Message or receive_message_with_id)
- - [ ] Review unsafe code (**the client must be boxed**, to work around some UB, fix on the way)
+ - [ ] Review unsafe code (**the client must be boxed**, to work around some UB, fix on the way, see [#1](https://github.com/dxenonb/yojimbo-rs/issues/1))
+ - [ ] Update dependencies (netcode, reliable, and libsodium)
  - [ ] Review error handling and use Option/Result (need to resolve some panics still)
  - [ ] Impl bit packer
  - [ ] Impl client Matcher service
