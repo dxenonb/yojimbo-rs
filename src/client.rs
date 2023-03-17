@@ -6,6 +6,7 @@ use crate::config::ClientServerConfig;
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
+use crate::network_simulator::NetworkSimulator;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 #[derive(Debug, Clone, Copy)]
@@ -36,7 +37,7 @@ pub struct Client<M> {
     config: ClientServerConfig,
     endpoint: *mut reliable_endpoint_t,
     connection: Option<Connection<M>>,
-    network_simulator: Option<()>,
+    network_simulator: Option<NetworkSimulator>,
     packet_buffer: Vec<u8>,
     client_state: ClientState,
     #[allow(unused)]
@@ -52,11 +53,17 @@ pub struct Client<M> {
 impl<M: NetworkMessage> Client<M> {
     pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client<M> {
         let packet_buffer = vec![0u8; config.connection.max_packet_size];
+
+        let network_simulator = config
+            .network_simulator
+            .as_ref()
+            .map(|config| NetworkSimulator::new(config.max_simulator_packets, time));
+
         Client {
             config,
             endpoint: std::ptr::null_mut(),
             connection: None,
-            network_simulator: None,
+            network_simulator,
             packet_buffer,
             client_state: ClientState::Disconnected,
             client_index: usize::MAX,
@@ -247,6 +254,18 @@ impl<M: NetworkMessage> Client<M> {
             .as_ref()
             .map(|c| c.has_messages_to_send(channel))
             .unwrap_or(false)
+    }
+
+    pub fn network_simulator_mut(&mut self) -> Option<&mut NetworkSimulator> {
+        self.network_simulator.as_mut()
+    }
+
+    // TODO: nice place for doc comments here
+    /// Use to configure the network simulator, if one is allocated for this client.
+    pub fn with_network_simulator<F: FnOnce(&mut NetworkSimulator)>(&mut self, f: F) {
+        if let Some(network_simulator) = self.network_simulator.as_mut() {
+            f(network_simulator)
+        }
     }
 
     /// Take a snapshot of the current network state.

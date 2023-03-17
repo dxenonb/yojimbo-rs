@@ -1,5 +1,6 @@
 use crate::bindings::*;
 use crate::gf_init_default;
+use crate::network_simulator::NetworkSimulatorConfig;
 use std::ffi::c_void;
 use std::ffi::CString;
 
@@ -18,10 +19,14 @@ pub struct ClientServerConfig {
     pub server_global_memory: usize,
     /// Memory allocated inside Server for packets, messages and stream allocations per-client (bytes)
     pub server_per_client_memory: usize,
-    /// If true then a network simulator is created for simulating latency, jitter, packet loss and duplicates.
-    pub network_simulator: bool,
-    /// Maximum number of packets that can be stored in the network simulator. Additional packets are dropped.
-    pub max_simulator_packets: usize,
+    /// If Some, then a network simulator is allocated for simulating latency, jitter, packet loss and duplicates.
+    ///
+    /// If None, nothing is created, and `with_network_simulator` calls are ignored.
+    ///
+    /// *IMPORTANT:* Supplying a network simulator config does not make the network simulator active. You have
+    /// to call the `set_{property}` methods via one of `network_simulator_mut` or `with_network_simulator`
+    /// methods on the client and server for the network simulator to be active/have any affect.
+    pub network_simulator: Option<NetworkSimulatorConfig>,
     /// Packets above this size (bytes) are split apart into fragments and reassembled on the other side.
     pub fragment_packets_above: usize,
     /// Size of each packet fragment (bytes).
@@ -51,8 +56,7 @@ impl ClientServerConfig {
             client_memory: 10 * 1024 * 1024,
             server_global_memory: 10 * 1024 * 1024,
             server_per_client_memory: 10 * 1024 * 1024,
-            network_simulator: false,
-            max_simulator_packets: 4 * 1024,
+            network_simulator: None,
             fragment_packets_above: 1024,
             packet_fragment_size: 1024,
             max_packet_fragments,

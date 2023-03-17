@@ -7,6 +7,7 @@ use crate::config::ClientServerConfig;
 use crate::connection::{Connection, ConnectionErrorLevel};
 use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
+use crate::network_simulator::NetworkSimulator;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
 pub struct Server<M: NetworkMessage> {
@@ -172,6 +173,22 @@ impl<M: NetworkMessage> Server<M> {
         }
     }
 
+    pub fn network_simulator_mut(&mut self) -> Option<&mut NetworkSimulator> {
+        unsafe {
+            self.runtime
+                .as_mut()
+                .and_then(|runtime| runtime.network_simulator.as_mut())
+        }
+    }
+
+    // TODO: nice place for doc comments here
+    /// Use to configure the network simulator, if one is allocated for this client.
+    pub fn with_network_simulator<F: FnOnce(&mut NetworkSimulator)>(&mut self, f: F) {
+        if let Some(network_simulator) = self.network_simulator_mut() {
+            f(network_simulator)
+        }
+    }
+
     /// Take a snapshot of the current network state.
     ///
     /// Returns None if the client is not connected.
@@ -236,7 +253,7 @@ struct ServerRuntime<M: NetworkMessage> {
     bound_port: u16,
 
     /// The network simulator used to simulate packet loss, latency, jitter etc. Optional.
-    network_simulator: Option<()>,
+    network_simulator: Option<NetworkSimulator>,
 
     /// Array of per-client connection classes. This is how messages are exchanged with clients.
     client_connection: Vec<Connection<M>>,
@@ -256,9 +273,10 @@ impl<M: NetworkMessage> ServerRuntime<M> {
     ) -> *mut ServerRuntime<M> {
         assert!(max_clients < i32::MAX as usize);
 
-        if config.network_simulator {
-            unimplemented!("initialize network simulator");
-        }
+        let network_simulator = config
+            .network_simulator
+            .as_ref()
+            .map(|config| NetworkSimulator::new(config.max_simulator_packets, time));
 
         let runtime = Box::new(ServerRuntime {
             max_clients,
@@ -266,7 +284,7 @@ impl<M: NetworkMessage> ServerRuntime<M> {
             server: null_mut(),
             bound_port: 0,
 
-            network_simulator: None,
+            network_simulator,
 
             client_connection: Vec::with_capacity(max_clients),
             client_endpoint: Vec::with_capacity(max_clients),
@@ -432,8 +450,8 @@ impl<M: NetworkMessage> ServerRuntime<M> {
                 reliable_endpoint_reset(self.client_endpoint[client_index as usize]);
             }
             self.client_connection[client_index as usize].reset();
-            if let Some(_) = &self.network_simulator {
-                unimplemented!("discard client packets");
+            if let Some(network_simulator) = &mut self.network_simulator {
+                network_simulator.discard_client_packets(client_index as usize);
             }
         }
     }

@@ -7,6 +7,7 @@ pub mod config;
 pub mod connection;
 pub mod message;
 pub mod network_info;
+pub mod network_simulator;
 pub mod server;
 
 pub const PRIVATE_KEY_BYTES: usize = bindings::NETCODE_KEY_BYTES as usize;
