@@ -127,7 +127,7 @@ impl NetworkSimulator {
 
         let mut delay = self.latency / 1000.0;
         if self.jitter > 0.0 {
-            delay += rng.gen_range(-self.jitter..=self.jitter);
+            delay += rng.gen_range(-self.jitter..=self.jitter) / 1000.0;
         }
 
         let entry = PacketEntry {
@@ -139,6 +139,7 @@ impl NetworkSimulator {
         self.push_packet(entry);
         if rng.gen::<f32>() < self.duplicates {
             let mut entry = self.entries.back().unwrap().clone();
+            entry.delievery_time = self.time + delay + rng.gen::<f64>();
             self.push_packet(entry);
         }
     }
@@ -156,7 +157,7 @@ impl NetworkSimulator {
     ///
     /// Returns an iterator over (client_index, packet_data) for each packet.
     pub(crate) fn receive_packets(&mut self) -> impl Iterator<Item = (usize, &[u8])> {
-        assert!(!self.active, "check network simulator is active before calling receive packets, this is for your own good");
+        assert!(self.active, "check network simulator is active before calling receive packets, this is for your own good");
 
         let time = self.time;
         self.entries.iter_mut().filter_map(move |entry| {
@@ -252,25 +253,34 @@ mod test {
     fn does_not_exceed_capacity() {
         let capacity = 100;
         let mut n = NetworkSimulator::new(capacity, 100.0);
+        n.set_latency(16.0);
 
         for _ in 0..(2 * capacity) {
-            n.send_packet(0, &[0; 1024]);
+            n.send_packet(0, &[0; 8]);
         }
 
-        n.advance_time(1000.0);
+        n.advance_time(n.time + 1.0);
         let count = n.receive_packets().count();
-        assert_eq!(capacity, count);
-        assert_eq!(capacity, n.entries.capacity());
+        assert_eq!(count, capacity);
+        assert_eq!(n.entries.capacity(), capacity);
     }
 
-    // #[test]
-    // fn discards_packets_on_inactive() {
-    //     let mut n = NetworkSimulator::new(100, 100.0);
-    //     let mut buffer = vec![0u8; 1024];
-    //     buffer.try_fill(&mut rand::thread_rng()).unwrap();
+    #[test]
+    fn discards_packets_on_inactive() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_latency(16.0);
 
-    //     n.send_packet(0, &buffer);
+        let sent = 50;
+        for _ in 0..sent {
+            n.send_packet(0, &[0; 8]);
+        }
 
-    //     assert!(n.receive_packets().is_none());
-    // }
+        n.advance_time(n.time + 1.0);
+        assert_eq!(n.receive_packets().count(), sent);
+
+        n.set_latency(0.0);
+        assert!(!n.active());
+
+        assert_eq!(n.entries.len(), 0);
+    }
 }
