@@ -114,7 +114,7 @@ impl NetworkSimulator {
     pub(crate) fn advance_time(&mut self, time: f64) {
         self.time = time;
 
-        // self.entries.retain(|entry| !entry.consumed);
+        self.entries.retain(|entry| !entry.consumed);
     }
 
     /// Queue a packet to send to a given client.
