@@ -287,4 +287,50 @@ mod test {
 
         assert_eq!(n.entries.len(), 0);
     }
+
+    #[test]
+    fn drops_packets() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_latency(16.0);
+        check_send_recieve(&mut n, 1.0, 50, 50);
+
+        n.set_packet_loss(1.0);
+        check_send_recieve(&mut n, 1.0, 50, 0);
+    }
+
+    #[test]
+    fn duplicates_packets() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_latency(16.0);
+        check_send_recieve(&mut n, 1.0, 50, 50);
+
+        n.set_duplicates(1.0);
+        check_send_recieve(&mut n, 4.0, 50, 100);
+
+        // check that duplicates don't extend the buffer
+        check_send_recieve(&mut n, 4.0, 75, 100);
+    }
+
+    #[test]
+    fn adds_latency_to_packets() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_latency(16.0);
+        check_send_recieve(&mut n, 1.0, 50, 50);
+
+        // check that 1500ms latency packets are not recieved within 1s
+        n.set_latency(1500.0);
+        check_send_recieve(&mut n, 1.0, 50, 0);
+
+        // check that they are all recieved within the next 1s
+        check_send_recieve(&mut n, 1.0, 0, 50);
+    }
+
+    fn check_send_recieve(n: &mut NetworkSimulator, dt: f64, send: usize, expect_received: usize) {
+        for _ in 0..send {
+            n.send_packet(0, &[0; 8]);
+        }
+        n.advance_time(n.time + dt);
+        assert_eq!(n.receive_packets().count(), expect_received);
+        n.advance_time(n.time); // remove the consumed entries
+    }
 }
