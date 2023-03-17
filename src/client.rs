@@ -1,5 +1,5 @@
 use std::ffi::{c_void, CString};
-use std::usize;
+use std::{slice, usize};
 
 use crate::channel::ChannelCounters;
 use crate::config::ClientServerConfig;
@@ -54,16 +54,11 @@ impl<M: NetworkMessage> Client<M> {
     pub fn new(address: String, config: ClientServerConfig, time: f64) -> Client<M> {
         let packet_buffer = vec![0u8; config.connection.max_packet_size];
 
-        let network_simulator = config
-            .network_simulator
-            .as_ref()
-            .map(|config| NetworkSimulator::new(config.max_simulator_packets, time));
-
         Client {
             config,
             endpoint: std::ptr::null_mut(),
             connection: None,
-            network_simulator,
+            network_simulator: None,
             packet_buffer,
             client_state: ClientState::Disconnected,
             client_index: usize::MAX,
@@ -98,8 +93,8 @@ impl<M: NetworkMessage> Client<M> {
                     }
                 }
             }
-            if let Some(_) = self.network_simulator {
-                unimplemented!("advance network simulator time");
+            if let Some(network_simulator) = &mut self.network_simulator {
+                network_simulator.advance_time(self.time);
             }
         }
 
@@ -115,8 +110,18 @@ impl<M: NetworkMessage> Client<M> {
         if matches!(state, ClientState::Disconnected | ClientState::Error) {
             self.disconnect();
         }
-        if let Some(_) = self.network_simulator {
-            unimplemented!("push packets through the network simulator");
+        if let Some(network_simulator) = &mut self.network_simulator {
+            if network_simulator.active() {
+                for (_, packet_data) in network_simulator.receive_packets() {
+                    unsafe {
+                        netcode_client_send_packet(
+                            self.client,
+                            packet_data.as_ptr(),
+                            packet_data.len() as i32,
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -332,9 +337,12 @@ impl<M: NetworkMessage> Client<M> {
     fn connect_internal(&mut self) {
         let connection = Connection::new(self.config.connection.clone(), self.time);
         self.connection = Some(connection);
-        if let Some(_) = self.network_simulator {
-            unimplemented!();
-        }
+
+        self.network_simulator = self
+            .config
+            .network_simulator
+            .as_ref()
+            .map(|config| NetworkSimulator::new(config.max_simulator_packets, self.time));
 
         let mut reliable_config = self.config.new_reliable_config(
             self as *const _ as *mut _,
@@ -375,6 +383,7 @@ impl<M: NetworkMessage> Client<M> {
         self.bound_port = None;
         unsafe { netcode_client_destroy(self.client) };
         self.client = std::ptr::null_mut();
+        self.network_simulator = None;
     }
 
     fn state_change_callback(&mut self, previous: ClientState, current: ClientState) {
@@ -392,11 +401,20 @@ impl<M: NetworkMessage> Client<M> {
         packet_data: *mut u8,
         packet_bytes: i32,
     ) {
-        if let Some(_) = &self.network_simulator {
-            unimplemented!();
-        } else {
-            netcode_client_send_packet(self.client, packet_data, packet_bytes);
+        // TODO: move the unsafety out of connection and handle it here... duh
+
+        if let Some(network_simulator) = &mut self.network_simulator {
+            if network_simulator.active() {
+                // intercept the packet and defer sending until `advance_time`
+                let packet_data =
+                    unsafe { slice::from_raw_parts(packet_data, packet_bytes as usize) };
+                network_simulator.send_packet(0, packet_data);
+
+                return;
+            }
         }
+
+        netcode_client_send_packet(self.client, packet_data, packet_bytes);
     }
 
     unsafe fn process_packet(

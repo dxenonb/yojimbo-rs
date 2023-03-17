@@ -1,6 +1,7 @@
 use std::ffi::{c_void, CString};
 use std::mem::size_of;
 use std::ptr::null_mut;
+use std::slice;
 
 use crate::channel::ChannelCounters;
 use crate::config::ClientServerConfig;
@@ -418,8 +419,17 @@ impl<M: NetworkMessage> ServerRuntime<M> {
         packet_data: *mut u8,
         packet_bytes: i32,
     ) {
-        if let Some(_) = self.network_simulator {
-            unimplemented!();
+        // TODO: move the unsafety out of connection and handle it here... duh
+
+        if let Some(network_simulator) = &mut self.network_simulator {
+            if network_simulator.active() {
+                // intercept the packet and defer sending until `advance_time`
+                let packet_data =
+                    unsafe { slice::from_raw_parts(packet_data, packet_bytes as usize) };
+                network_simulator.send_packet(client_index as usize, packet_data);
+
+                return;
+            }
         }
         netcode_server_send_packet(self.server, client_index, packet_data, packet_bytes);
     }
@@ -587,13 +597,22 @@ fn advance_time<M: NetworkMessage>(runtime: *mut ServerRuntime<M>, new_time: f64
             connection.process_acks(acks, num_acks);
             reliable_endpoint_clear_acks(endpoint);
 
-            if let Some(_) = (*runtime).network_simulator {
-                unimplemented!("advance network simulator time");
+            if let Some(network_simulator) = &mut (*runtime).network_simulator {
+                network_simulator.advance_time(new_time);
             }
         }
 
-        if let Some(_) = (*runtime).network_simulator {
-            unimplemented!("push packets through the network simulator");
+        if let Some(network_simulator) = &mut (*runtime).network_simulator {
+            if network_simulator.active() {
+                for (client_index, packet_data) in network_simulator.receive_packets() {
+                    netcode_server_send_packet(
+                        nc_server,
+                        client_index as i32,
+                        packet_data.as_ptr(),
+                        packet_data.len() as i32,
+                    );
+                }
+            }
         }
     }
 }
