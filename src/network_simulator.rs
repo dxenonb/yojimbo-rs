@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Debug};
 
 use rand::Rng;
 
@@ -41,6 +41,10 @@ impl NetworkSimulator {
     ///
     /// If `max_packets` is 0, this does not allocate.
     pub(crate) fn new(max_packets: usize, time: f64) -> NetworkSimulator {
+        log::debug!(
+            "Allocated network simulator holding up to {} packets",
+            max_packets
+        );
         NetworkSimulator {
             entries: VecDeque::with_capacity(max_packets),
             time,
@@ -189,6 +193,28 @@ impl NetworkSimulator {
                 None
             }
         })
+    }
+}
+
+impl Debug for NetworkSimulator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "NetworkSimulator(t={:.2}) {{", self.time)?;
+        writeln!(
+            f,
+            "\tlatency: {:.0}ms +/- {:.0}ms,",
+            self.latency.round(),
+            self.jitter.round()
+        )?;
+        writeln!(f, "\tpacket loss: {:.2}%,", self.packet_loss * 100.0)?;
+        writeln!(f, "\tduplicates: {:.2}%,", self.duplicates * 100.0)?;
+        writeln!(
+            f,
+            "\tentries: {}/{}",
+            self.entries.len(),
+            self.entries.capacity()
+        )?;
+        writeln!(f, "}}")?;
+        Ok(())
     }
 }
 
