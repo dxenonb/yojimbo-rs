@@ -101,10 +101,14 @@ impl NetworkSimulator {
     /// Minor optimization so that we're not checking each field each
     /// send/recieve in the client and server.
     fn update_active(&mut self) {
+        let previous = self.active;
         self.active = self.latency != 0.0
             || self.jitter != 0.0
             || self.packet_loss != 0.0
             || self.duplicates != 0.0;
+        if previous && !self.active {
+            self.entries.clear();
+        }
     }
 
     pub(crate) fn advance_time(&mut self, time: f64) {
