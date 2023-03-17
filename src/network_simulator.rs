@@ -74,7 +74,7 @@ impl NetworkSimulator {
     ///
     /// 0% = no packet loss, 100% = all packets are dropped.
     pub fn set_packet_loss(&mut self, percent: f32) {
-        // assert!(percent >= 0.0 && percent <= 1.0);
+        assert!(percent >= 0.0 && percent <= 1.0);
         self.packet_loss = percent;
         self.update_active();
     }
@@ -86,7 +86,7 @@ impl NetworkSimulator {
     ///
     /// 0% = no duplicate packets, 100% = all packets have a duplicate sent.
     pub fn set_duplicates(&mut self, percent: f32) {
-        // assert!(percent >= 0.0 && percent <= 1.0);
+        assert!(percent >= 0.0 && percent <= 1.0);
         self.duplicates = percent;
         self.update_active();
     }
@@ -145,10 +145,10 @@ impl NetworkSimulator {
 
     /// Helper function to use the VecDeque as a circular buffer.
     fn push_packet(&mut self, entry: PacketEntry) {
-        // if self.entries.len() == self.entries.capacity() {
-        //     // drop the oldest packet if we're at capacity
-        //     let _ = self.entries.pop_front();
-        // }
+        if self.entries.len() == self.entries.capacity() {
+            // drop the oldest packet if we're at capacity
+            let _ = self.entries.pop_front();
+        }
         self.entries.push_back(entry);
     }
 
