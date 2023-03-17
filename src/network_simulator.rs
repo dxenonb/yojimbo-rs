@@ -96,6 +96,21 @@ impl NetworkSimulator {
         self.active
     }
 
+    /// Discard all packets in the network simulator.
+    ///
+    /// This is useful if the simulator needs to be reset and used for another purpose.
+    pub fn discard_packets(&mut self) {
+        self.entries.clear();
+    }
+
+    /// Discard packets sent to a particular client index.
+    ///
+    /// This is called when a client disconnects from the server.
+    pub fn discard_client_packets(&mut self, client_index: usize) {
+        self.entries
+            .retain(|entry| entry.destination_client_index != client_index);
+    }
+
     /// Call this after the `set_{property}` method to update the `active` field.
     ///
     /// Minor optimization so that we're not checking each field each
@@ -174,21 +189,6 @@ impl NetworkSimulator {
                 None
             }
         })
-    }
-
-    /// Discard all packets in the network simulator.
-    ///
-    /// This is useful if the simulator needs to be reset and used for another purpose.
-    pub(crate) fn discard_packets(&mut self) {
-        self.entries.clear();
-    }
-
-    /// Discard packets sent to a particular client index.
-    ///
-    /// This is called when a client disconnects from the server.
-    pub(crate) fn discard_client_packets(&mut self, client_index: usize) {
-        self.entries
-            .retain(|entry| entry.destination_client_index != client_index);
     }
 }
 
