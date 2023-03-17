@@ -131,7 +131,7 @@ impl<M: NetworkMessage> Client<M> {
         client_id: u64,
         server_addresses: &[&str],
     ) {
-        assert!(server_addresses.len() > 0);
+        assert!(!server_addresses.is_empty());
         assert!(server_addresses.len() <= NETCODE_MAX_SERVERS_PER_CONNECT as usize);
 
         self.disconnect();
@@ -368,7 +368,7 @@ impl<M: NetworkMessage> Client<M> {
         netcode_config.send_loopback_packet_callback = None; // TODO
         let address = CString::new(self.address.as_str()).unwrap();
         self.client = unsafe {
-            netcode_client_create(address.as_ptr() as *mut i8, &mut netcode_config, self.time)
+            netcode_client_create(address.as_ptr() as *mut i8, &netcode_config, self.time)
         };
 
         if !self.client.is_null() {

@@ -43,7 +43,7 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
 
         // TODO: block messages
 
-        let has_messages = self.messages.len() > 0;
+        let has_messages = !self.messages.is_empty();
 
         dest.write_u8(if has_messages { 1 } else { 0 }).unwrap();
 
@@ -172,12 +172,14 @@ impl<M: NetworkMessage> ChannelPacketData<M> {
         Self::deserialize_check(reader);
 
         // read the messages
-        for i in 0..message_count {
+        let expect_length = message_ids.len();
+        for id in message_ids {
             let message = M::deserialize(&mut reader)?;
-            messages.push((message_ids[i], message));
+            messages.push((id, message));
 
             Self::deserialize_check(reader);
         }
+        assert_eq!(messages.len(), expect_length);
 
         Ok(())
     }

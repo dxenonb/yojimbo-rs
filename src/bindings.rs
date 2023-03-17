@@ -21,6 +21,14 @@ pub struct NetcodeAddress<'a> {
 }
 
 impl<'a> NetcodeAddress<'a> {
+    /// Create a new NetcodeAddress
+    ///
+    /// # Safety
+    ///
+    /// `raw` must point to a valid netcode_address_t, and must be valid for the lifetime 'a.
+    ///
+    /// Assumes we are not taking ownership of `raw`; `raw` is not freed on drop (and should
+    /// not be).
     pub unsafe fn new(raw: *const netcode_address_t) -> NetcodeAddress<'a> {
         assert!(!raw.is_null());
         NetcodeAddress {

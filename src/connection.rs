@@ -30,7 +30,7 @@ pub(crate) struct Connection<M> {
 
 impl<M: NetworkMessage> Connection<M> {
     pub(crate) fn new(config: ConnectionConfig, time: f64) -> Connection<M> {
-        assert!(config.channels.len() >= 1);
+        assert!(!config.channels.is_empty());
 
         let mut channels = Vec::with_capacity(config.channels.len());
         for (channel_index, channel_config) in config.channels.iter().enumerate() {
@@ -126,14 +126,14 @@ impl<M: NetworkMessage> Connection<M> {
         packet_sequence: u16,
         packet_data: &mut [u8],
     ) -> usize {
-        if self.channels.len() == 0 {
+        if self.channels.is_empty() {
             return 0;
         }
 
         // REFACTOR: consider caching
         let mut channel_data = Vec::new();
 
-        assert!(packet_data.len() > 0);
+        assert!(!packet_data.is_empty());
         let mut available_bits = packet_data.len() * 8 - CONSERVATIVE_PACKET_HEADER_BITS;
 
         for channel in &mut self.channels {

@@ -136,7 +136,7 @@ impl ClientServerConfig {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct ChannelConfig {
     pub kind: ChannelType,
     pub sent_packet_buffer_size: usize,

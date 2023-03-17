@@ -78,7 +78,7 @@ impl NetworkSimulator {
     ///
     /// 0% = no packet loss, 100% = all packets are dropped.
     pub fn set_packet_loss(&mut self, percent: f32) {
-        assert!(percent >= 0.0 && percent <= 1.0);
+        assert!((0.0..=1.0).contains(&percent));
         self.packet_loss = percent;
         self.update_active();
     }
@@ -90,7 +90,7 @@ impl NetworkSimulator {
     ///
     /// 0% = no duplicate packets, 100% = all packets have a duplicate sent.
     pub fn set_duplicates(&mut self, percent: f32) {
-        assert!(percent >= 0.0 && percent <= 1.0);
+        assert!((0.0..=1.0).contains(&percent));
         self.duplicates = percent;
         self.update_active();
     }
@@ -188,7 +188,7 @@ impl NetworkSimulator {
 
             if entry.delievery_time < time {
                 entry.consumed = true;
-                return Some((entry.destination_client_index, &entry.packet_data[..]));
+                Some((entry.destination_client_index, &entry.packet_data[..]))
             } else {
                 None
             }

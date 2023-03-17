@@ -130,6 +130,7 @@ impl<M: NetworkMessage> Server<M> {
                     let endpoint = runtime.client_endpoint[client_index];
                     let connection = &mut runtime.client_connection[client_index];
                     disconnect_client(runtime.server, client_index, endpoint, connection);
+                    #[allow(clippy::drop_ref)]
                     drop(runtime); // SAFETY: the disconnect callback will fire on `runtime`
                 }
             }
@@ -650,7 +651,7 @@ unsafe fn netcode_server<M: NetworkMessage>(
 
     let server_address = CString::new(address).unwrap();
 
-    netcode_server_create(server_address.as_ptr() as *mut _, &mut netcode_config, time)
+    netcode_server_create(server_address.as_ptr() as *mut _, &netcode_config, time)
 }
 
 unsafe fn disconnect_client<M>(

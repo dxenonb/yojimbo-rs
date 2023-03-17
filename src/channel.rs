@@ -72,7 +72,7 @@ pub struct Channel<M> {
 impl<M: NetworkMessage> Channel<M> {
     pub(crate) fn new(config: ChannelConfig, channel_index: usize, time: f64) -> Channel<M> {
         let processor: Box<dyn Processor<M>> = match config.kind {
-            ChannelType::ReliableOrdered => Box::new(Reliable::new(config, time)),
+            ChannelType::ReliableOrdered => Box::new(Reliable::new(config.clone(), time)),
             ChannelType::UnreliableUnordered => Box::new(Unreliable::new(&config)),
         };
         Channel {

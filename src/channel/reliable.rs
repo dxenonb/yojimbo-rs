@@ -125,7 +125,7 @@ impl<M: NetworkMessage> Reliable<M> {
             let Some(entry) = self.message_send_queue.get_mut(message_id) else { continue };
 
             if entry.time_last_sent + self.config.message_resend_time <= self.time
-                && available_bits >= entry.measured_bits as usize
+                && available_bits >= entry.measured_bits
             {
                 let mut message_bits = entry.measured_bits;
 
@@ -164,12 +164,10 @@ impl<M: NetworkMessage> Reliable<M> {
             messages.push((*id, message));
         }
 
-        let packet_data = ChannelPacketData {
+        ChannelPacketData {
             channel_index,
             messages,
-        };
-
-        packet_data
+        }
     }
 
     /// Add an entry for this sequence number to `sent_packets`.
@@ -273,7 +271,7 @@ impl<M: NetworkMessage> Processor<M> for Reliable<M> {
 
         let (message_ids, message_bits) = self.get_messages_to_send(available_bits);
 
-        if message_ids.len() > 0 {
+        if !message_ids.is_empty() {
             let packet_data = self.get_message_packet_data(channel_index, &message_ids[..]);
             self.add_message_packet_entry(&message_ids[..], packet_sequence);
             (packet_data, message_bits)
