@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use rand::Rng;
+
 #[derive(Debug, Clone)]
 pub struct NetworkSimulatorConfig {
     /// Maximum number of packets that can be stored in the network simulator.
@@ -15,9 +17,18 @@ impl Default for NetworkSimulatorConfig {
     }
 }
 
+/// NetworkSimulator to simulate latency and jitter.
+///
+/// Differences from original yojimbo:
+///
+///  - percents for packet loss and duplicates are expressed as [0, 1] instead
+///    of [0, 100]; both ranges are entirely reasonable choices but we can
+///    assert percents are in [0, 1], whereas we don't know what the user means
+///    if they enter 0.9; did they mean 0.9% of packets are lost? Hopefully
+///    this saves somebody some headache.
 pub struct NetworkSimulator {
-    latency: f32,
-    jitter: f32,
+    latency: f64,
+    jitter: f64,
     packet_loss: f32,
     duplicates: f32,
     active: bool,
@@ -45,7 +56,7 @@ impl NetworkSimulator {
     ///
     /// This latency is added on packet send. To simulate a round trip time of
     /// 100ms, add 50ms of latency to both sides of the connection.
-    pub fn set_latency(&mut self, milliseconds: f32) {
+    pub fn set_latency(&mut self, milliseconds: f64) {
         self.latency = milliseconds;
         self.update_active();
     }
@@ -54,15 +65,16 @@ impl NetworkSimulator {
     ///
     /// Jitter is applied +/- this amount in milliseconds. To be truly
     /// effective, jitter must be applied together with some latency.
-    pub fn set_jitter(&mut self, milliseconds: f32) {
+    pub fn set_jitter(&mut self, milliseconds: f64) {
         self.jitter = milliseconds;
         self.update_active();
     }
 
-    /// Set the amount of packet loss to apply on send, as a percent.
+    /// Set the amount of packet loss to apply on send, as a percent [0, 1].
     ///
     /// 0% = no packet loss, 100% = all packets are dropped.
     pub fn set_packet_loss(&mut self, percent: f32) {
+        // assert!(percent >= 0.0 && percent <= 1.0);
         self.packet_loss = percent;
         self.update_active();
     }
@@ -74,6 +86,7 @@ impl NetworkSimulator {
     ///
     /// 0% = no duplicate packets, 100% = all packets have a duplicate sent.
     pub fn set_duplicates(&mut self, percent: f32) {
+        // assert!(percent >= 0.0 && percent <= 1.0);
         self.duplicates = percent;
         self.update_active();
     }
@@ -96,43 +109,95 @@ impl NetworkSimulator {
 
     pub(crate) fn advance_time(&mut self, time: f64) {
         self.time = time;
+
+        // self.entries.retain(|entry| !entry.consumed);
     }
 
     /// Queue a packet to send to a given client.
+    ///
+    /// If you are calling this from the client, pass anything for
+    /// `client_index` (well, 0 is a good choice) - it doesn't matter,
+    /// and just ignore the client_index on `receive_packets`.
     pub(crate) fn send_packet(&mut self, client_index: usize, packet_data: &[u8]) {
-        panic!();
+        let mut rng = rand::thread_rng();
+
+        if rng.gen::<f32>() < self.packet_loss {
+            return;
+        }
+
+        let mut delay = self.latency / 1000.0;
+        if self.jitter > 0.0 {
+            delay += rng.gen_range(-self.jitter..=self.jitter);
+        }
+
+        let entry = PacketEntry {
+            destination_client_index: client_index,
+            delievery_time: self.time + delay,
+            packet_data: Vec::from(packet_data),
+            consumed: false,
+        };
+        self.push_packet(entry);
+        if rng.gen::<f32>() < self.duplicates {
+            let mut entry = self.entries.back().unwrap().clone();
+            self.push_packet(entry);
+        }
     }
 
-    /// TODO
-    pub(crate) fn receive_packets(&mut self) {
-        panic!();
+    /// Helper function to use the VecDeque as a circular buffer.
+    fn push_packet(&mut self, entry: PacketEntry) {
+        // if self.entries.len() == self.entries.capacity() {
+        //     // drop the oldest packet if we're at capacity
+        //     let _ = self.entries.pop_front();
+        // }
+        self.entries.push_back(entry);
+    }
+
+    /// Recieve all the packets currently available.
+    ///
+    /// Returns an iterator over (client_index, packet_data) for each packet.
+    pub(crate) fn receive_packets(&mut self) -> impl Iterator<Item = (usize, &[u8])> {
+        assert!(!self.active, "check network simulator is active before calling receive packets, this is for your own good");
+
+        let time = self.time;
+        self.entries.iter_mut().filter_map(move |entry| {
+            assert!(!entry.consumed, "consumed packet found on receive; did you forget to call advance_time on the network simulator?");
+
+            if entry.delievery_time < time {
+                entry.consumed = true;
+                return Some((entry.destination_client_index, &entry.packet_data[..]));
+            } else {
+                None
+            }
+        })
     }
 
     /// Discard all packets in the network simulator.
     ///
     /// This is useful if the simulator needs to be reset and used for another purpose.
     pub(crate) fn discard_packets(&mut self) {
-        panic!()
+        self.entries.clear();
     }
 
     /// Discard packets sent to a particular client index.
     ///
     /// This is called when a client disconnects from the server.
     pub(crate) fn discard_client_packets(&mut self, client_index: usize) {
-        panic!()
+        self.entries
+            .retain(|entry| entry.destination_client_index != client_index);
     }
 }
 
+#[derive(Debug, Clone)]
 struct PacketEntry {
     destination_client_index: usize,
     delievery_time: f64,
     packet_data: Vec<u8>,
+    /// True if this packet has been received.
+    consumed: bool,
 }
 
 #[cfg(test)]
 mod test {
-    use rand::Fill;
-
     use super::NetworkSimulator;
 
     #[test]
@@ -167,6 +232,35 @@ mod test {
         assert!(!n.active());
         n.set_duplicates(0.5);
         assert!(n.active());
+    }
+
+    #[test]
+    #[should_panic]
+    fn duplicates_on_range_0_1() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_duplicates(50.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn packet_loss_on_range_0_1() {
+        let mut n = NetworkSimulator::new(100, 100.0);
+        n.set_packet_loss(50.0);
+    }
+
+    #[test]
+    fn does_not_exceed_capacity() {
+        let capacity = 100;
+        let mut n = NetworkSimulator::new(capacity, 100.0);
+
+        for _ in 0..(2 * capacity) {
+            n.send_packet(0, &[0; 1024]);
+        }
+
+        n.advance_time(1000.0);
+        let count = n.receive_packets().count();
+        assert_eq!(capacity, count);
+        assert_eq!(capacity, n.entries.capacity());
     }
 
     // #[test]
