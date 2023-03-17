@@ -9,7 +9,7 @@ use crate::message::NetworkMessage;
 use crate::network_info::NetworkInfo;
 use crate::{bindings::*, gf_init_default, PRIVATE_KEY_BYTES};
 
-pub struct Server<M> {
+pub struct Server<M: NetworkMessage> {
     private_key: [u8; PRIVATE_KEY_BYTES],
     address: String,
 
@@ -219,7 +219,14 @@ impl<M: NetworkMessage> Server<M> {
     }
 }
 
-struct ServerRuntime<M> {
+impl<M: NetworkMessage> Drop for Server<M> {
+    fn drop(&mut self) {
+        // this will take care of shutting down the server and freeing `runtime`
+        self.stop();
+    }
+}
+
+struct ServerRuntime<M: NetworkMessage> {
     /// Maximum number of clients supported.
     max_clients: usize,
 
@@ -339,18 +346,7 @@ impl<M: NetworkMessage> ServerRuntime<M> {
     ///  - the inner `netcode_server_t` reference must be a valid netcode server
     ///  - the inner `reliable_endpoint_t` references must be valid reliable endpoints
     unsafe fn drop(runtime: *mut ServerRuntime<M>) {
-        let mut runtime = Box::from_raw(runtime);
-
-        if !runtime.server.is_null() {
-            netcode_server_stop(runtime.server);
-            netcode_server_destroy(runtime.server);
-            runtime.server = null_mut();
-        }
-
-        for endpoint in &mut runtime.client_endpoint {
-            unsafe { reliable_endpoint_destroy(*endpoint) };
-            *endpoint = null_mut();
-        }
+        drop(Box::from_raw(runtime));
     }
 
     fn snapshot_network_info(&self, client_index: usize) -> Option<NetworkInfo> {
@@ -443,6 +439,23 @@ impl<M: NetworkMessage> ServerRuntime<M> {
     }
 }
 
+impl<M: NetworkMessage> Drop for ServerRuntime<M> {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.server.is_null() {
+                netcode_server_stop(self.server);
+                netcode_server_destroy(self.server);
+                self.server = null_mut();
+            }
+
+            for endpoint in &mut self.client_endpoint {
+                reliable_endpoint_destroy(*endpoint);
+                *endpoint = null_mut();
+            }
+        }
+    }
+}
+
 fn send_packets<M: NetworkMessage>(config: &ClientServerConfig, runtime: *mut ServerRuntime<M>) {
     if runtime.is_null() {
         return;
@@ -487,7 +500,7 @@ fn send_packets<M: NetworkMessage>(config: &ClientServerConfig, runtime: *mut Se
     }
 }
 
-fn receive_packets<M>(runtime: *mut ServerRuntime<M>) {
+fn receive_packets<M: NetworkMessage>(runtime: *mut ServerRuntime<M>) {
     if runtime.is_null() {
         return;
     }
