@@ -99,6 +99,18 @@ impl<M: NetworkMessage> Server<M> {
         }
     }
 
+    /// Get the maxmimum number of clients.
+    ///
+    /// Returns 0 if the server is not running.
+    pub fn max_clients(&self) -> usize {
+        unsafe {
+            self.runtime
+                .as_ref()
+                .map(|client| client.max_clients)
+                .unwrap_or(0)
+        }
+    }
+
     pub fn client_id(&self, client_index: usize) -> Option<u64> {
         unsafe {
             if let Some(runtime) = self.runtime.as_mut() {
