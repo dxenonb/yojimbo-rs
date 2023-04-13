@@ -205,17 +205,12 @@ impl<M: NetworkMessage> Client<M> {
     }
 
     pub fn send_message(&mut self, channel_index: usize, message: M) {
-        self.connection
-            .as_mut()
-            .expect("client not connected")
-            .send_message(channel_index, message);
+        let Some(connection) = self.connection.as_mut() else { return };
+        connection.send_message(channel_index, message);
     }
 
     pub fn receive_message(&mut self, channel_index: usize) -> Option<M> {
-        self.connection
-            .as_mut()
-            .expect("client not connected")
-            .receive_message(channel_index)
+        self.connection.as_mut()?.receive_message(channel_index)
     }
 
     /// Check if this client is currently successfully connected.
