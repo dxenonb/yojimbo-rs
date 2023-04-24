@@ -358,7 +358,9 @@ struct MessageReceiveQueueEntry<M> {
 }
 
 struct SentPacketEntry {
+    // TODO: investigate the unused warning more
     /// The time the packet was sent. Used to estimate round trip time.
+    #[allow(unused)]
     time_sent: f64,
     /// References `sent_packet_message_ids`, in the format (start index, run length)
     message_ids: (usize, usize),
