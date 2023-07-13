@@ -6,6 +6,8 @@ edition = "2021"
 [features]
 default = []
 serialize_check = []
+# Manages asserts/debugging code related to issue #3
+soak_debugging_asserts = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

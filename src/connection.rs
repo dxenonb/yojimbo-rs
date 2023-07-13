@@ -140,6 +140,16 @@ impl<M: NetworkMessage> Connection<M> {
             let (packet_data, packet_data_bits) =
                 channel.packet_data(packet_sequence, available_bits);
             if packet_data_bits > 0 {
+                #[cfg(feature = "soak_debugging_asserts")]
+                {
+                    assert!(
+                        packet_data_bits + CONSERVATIVE_CHANNEL_HEADER_BITS < available_bits,
+                        "available: {}, packet + header = {} + {}",
+                        available_bits,
+                        packet_data_bits,
+                        CONSERVATIVE_CHANNEL_HEADER_BITS
+                    );
+                }
                 available_bits -= CONSERVATIVE_CHANNEL_HEADER_BITS;
                 available_bits -= packet_data_bits;
                 channel_data.push(packet_data);
