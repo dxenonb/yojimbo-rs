@@ -190,7 +190,7 @@ impl<M: NetworkMessage> Connection<M> {
         self.channels[channel_index].send_message(message);
     }
 
-    pub(crate) fn receive_message(&mut self, channel_index: usize) -> Option<M> {
+    pub(crate) fn receive_message(&mut self, channel_index: usize) -> Option<(u16, M)> {
         self.channels[channel_index].receive_message()
     }
 }
@@ -321,7 +321,7 @@ mod test {
             );
 
             loop {
-                let Some(message) = receiver.receive_message(0) else { break };
+                let Some((_id, message)) = receiver.receive_message(0) else { break };
                 assert_eq!(
                     message.value, expect_value,
                     "actual message value {}, expected {}; iter: {}",
@@ -380,7 +380,7 @@ mod test {
             );
 
             loop {
-                let Some(message) = receiver.receive_message(0) else { break };
+                let Some((_id, message)) = receiver.receive_message(0) else { break };
                 assert_eq!(
                     message.value, expect_value,
                     "actual message value {}, expected {}; iter: {}",
@@ -451,7 +451,7 @@ mod test {
             );
 
             loop {
-                let Some(message) = sender.receive_message(0) else { break };
+                let Some((_id, message)) = sender.receive_message(0) else { break };
                 assert_eq!(
                     message.value, sender_expect_value,
                     "actual message value {}, expected {}; iter: {}",
@@ -461,7 +461,7 @@ mod test {
             }
 
             loop {
-                let Some(message) = receiver.receive_message(0) else { break };
+                let Some((_id, message)) = receiver.receive_message(0) else { break };
                 assert_eq!(
                     message.value, receiver_expect_value,
                     "actual message value {}, expected {}; iter: {}",

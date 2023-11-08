@@ -163,16 +163,16 @@ impl<M: NetworkMessage> Channel<M> {
         self.counters.sent += 1;
     }
 
-    pub(crate) fn receive_message(&mut self) -> Option<M> {
+    pub(crate) fn receive_message(&mut self) -> Option<(u16, M)> {
         if self.error_level() != ChannelErrorLevel::None {
             return None;
         }
 
-        let (_, result) = self.processor.receive_message()?;
+        let (id, result) = self.processor.receive_message()?;
 
         self.counters.received += 1;
 
-        Some(result)
+        Some((id, result))
     }
 
     /// All errors go through this function to make debug logging easier.

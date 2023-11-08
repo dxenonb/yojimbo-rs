@@ -17,8 +17,10 @@ MVP tasks:
  - [x] Add CI/CD
  - [x] Add Automated Tests (more are still desireable!)
  - [x] Add network simulator
- - [ ] Expose message IDs (either via set/get on Network Message or receive_message_with_id)
- - [ ] Review unsafe code (**the client must be boxed**, to work around some UB, fix on the way, see [#1](https://github.com/dxenonb/yojimbo-rs/issues/1))
+ - [x] Expose message IDs (either via set/get on Network Message or receive_message_with_id)
+   - Note: I added this via `with_id` for now but I'm considering just 
+     always returning hte message ID with `receive_message`!
+ - [ ] Review unsafe code (**the client must be boxed**, to work around some UB, see [#1](https://github.com/dxenonb/yojimbo-rs/issues/1))
  - [ ] Update dependencies (netcode, reliable, and libsodium)
  - [ ] Review error handling and use Option/Result (need to resolve some panics still)
  - [ ] Impl bit packer
@@ -32,7 +34,7 @@ This is more or less a 1-1 port of `yojimbo` to Rust, following the C++ API as c
  - There is no API for specifying any allocators (yet)
  - The Matcher is not ported yet, so there is no included way to securely get a private key/connect token to your client out-of-the-box.
 
-*In lieu of block support, serializing large messages may work. While not ideal, try sending the binary data in chunks over a reliable channel, and then copy the chunk from each message into your block buffer. This should work OK as a stop gap as long as you aren't sending blocks often, e.g. once at the start of a game.*
+*In lieu of (reliable/ordered) block support, serializing large messages may work. While not ideal, try sending the binary data in chunks over a reliable channel, and then copy the chunk from each message into your block buffer. This should work OK as a stop gap as long as you aren't sending blocks often, e.g. once at the start of a game.*
 
 Additional tasks in the backlog:
 

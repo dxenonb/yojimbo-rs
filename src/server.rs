@@ -89,7 +89,41 @@ impl<M: NetworkMessage> Server<M> {
         }
     }
 
+    /// Receive a message.
+    ///
+    /// On an ordered channel, these messages are always returned in the order sent; on an
+    /// unordered channel, they are returned in the order received by the network.
+    ///
+    /// For unordered channels, you may want to use [receive_message_with_id], see docs.
+    ///
+    /// Returns `None` when all received messages are handled. Call `receive_packets` before this.
     pub fn receive_message(&mut self, client_index: usize, channel_index: usize) -> Option<M> {
+        unsafe {
+            if let Some(runtime) = self.runtime.as_mut() {
+                runtime.client_connection[client_index]
+                    .receive_message(channel_index)
+                    .map(|(_id, message)| message)
+            } else {
+                None
+            }
+        }
+    }
+
+    /// Receive a message, along with it's ID.
+    ///
+    /// On an ordered channel, these messages are always returned in the order sent; on an
+    /// unordered channel, they are returned in the order received by the network.
+    ///
+    /// For unordered channels, the ID is an incrementing & wrapping "sequence number", which
+    /// can be used to determine when an unreliable message is older or newer than a previously
+    /// received reliable message. (e.g., so you can ignore old transform replications)
+    ///
+    /// Returns `None`` when all received messages are handled. Call `receive_packets` before this.
+    pub fn receive_message_with_id(
+        &mut self,
+        client_index: usize,
+        channel_index: usize,
+    ) -> Option<(u16, M)> {
         unsafe {
             if let Some(runtime) = self.runtime.as_mut() {
                 runtime.client_connection[client_index].receive_message(channel_index)
