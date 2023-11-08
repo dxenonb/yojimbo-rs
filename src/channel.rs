@@ -178,7 +178,11 @@ impl<M: NetworkMessage> Channel<M> {
     /// All errors go through this function to make debug logging easier.
     fn set_error_level(&mut self, level: ChannelErrorLevel) {
         if self.error_level != level && level != ChannelErrorLevel::None {
-            log::error!("channel went into error state: {:?}", level);
+            log::error!(
+                "channel {} went into error state: {:?}",
+                self.channel_index,
+                level
+            );
         }
         self.error_level = level;
     }
