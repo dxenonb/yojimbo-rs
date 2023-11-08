@@ -456,8 +456,9 @@ impl<M: NetworkMessage> Client<M> {
     }
 
     pub fn disconnect(&mut self) {
-        {
-            /* yojimbo BaseClient::Disconnect */
+        if !matches!(self.client_state, ClientState::Error) {
+            // set to disconnected state - but do not overwrite the state if it is `Error`
+            // (this ensures the user can detect error states vs disconnected)
             self.client_state = ClientState::Disconnected;
         }
         self.destroy_client();
